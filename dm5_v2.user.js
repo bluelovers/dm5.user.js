@@ -79,17 +79,17 @@
 		if (!mode) event.preventDefault();
 	}
 
-	// ========================================
-	// 主程式
-	// ========================================
+// ========================================
+// 主程式
+// ========================================
 
-	// 只在漫畫閱讀頁面執行
-	if (!document.querySelector('body.vPage') && !document.querySelector('#showimage'))
-	{
-		return;
-	}
+// 只在漫畫閱讀頁面執行
+if (!document.querySelector('body.vPage') && !document.querySelector('#showimage'))
+{
+	return;
+}
 
-	let imgElements = getImages();
+let imgElements = getImages();
 
 	// 創建頁數顯示的浮動元素
 	const divPage = document.createElement('div');
@@ -130,10 +130,10 @@
 	}
 
 	/**
-	 * 觸發 resize 事件（節流）
+	 * 觸發 resize（節流）
 	 */
 	const emitResize = throttle(300, () => {
-		window.dispatchEvent(new Event('resize'));
+		handleResize();
 	});
 
 	/**
@@ -262,9 +262,9 @@
 	}
 
 	/**
-	 * 處理窗口大小調整
+	 * 處理窗口大小調整（用於 resize.scroll 事件）
 	 */
-	function handleResize()
+	function handleResizeScroll()
 	{
 		imgElements = getImages();
 
@@ -281,6 +281,15 @@
 
 		// 滾動到圖片
 		scrollToElement(getImages());
+	}
+
+	/**
+	 * 處理窗口大小調整（主處理函數）
+	 */
+	function handleResize()
+	{
+		handleResizeScroll();
+		updateImageStyles();
 	}
 
 	/**
@@ -324,7 +333,7 @@
 			}
 		}
 
-		setTimeout(emitResize, 300);
+		setTimeout(handleResize, 300);
 	}
 
 	/**
@@ -332,7 +341,8 @@
 	 */
 	function handleImageLoad()
 	{
-		window.dispatchEvent(new Event('load.imagesLoaded'));
+		// 直接調用更新樣式
+		updateImageStyles();
 	}
 
 	/**
@@ -456,39 +466,71 @@
 	function dm5()
 	{
 		waitForImages().then(() => {
-			window.dispatchEvent(new Event('load.imagesLoaded'));
+			updateImageStyles();
 		});
 	}
 
-	// ========================================
-	// 事件監聽器綁定
-	// ========================================
+// ========================================
+// 事件監聽器綁定
+// ========================================
 
-	// 窗口事件
-	window.addEventListener('resize.scroll', handleResize);
-	window.addEventListener('resize.imagesLoaded', updateImageStyles);
-	window.addEventListener('load', dm5);
-	window.addEventListener('load.imagesLoaded', () => {
-		window.dispatchEvent(new Event('load.nocontextmenu'));
-		window.dispatchEvent(new Event('resize'));
-	});
-	window.addEventListener('keydown.page', handleKeydown);
+// 窗口事件
+window.addEventListener('resize', handleResize);
+window.addEventListener('load', dm5);
 
-	// 監聽 #showimage DOM 變化
-	const showimageObserver = new MutationObserver(() => {
-		dm5();
-		window.dispatchEvent(new Event('load.imagesLoaded'));
-		setTimeout(emitResize, 300);
-	});
+// 鍵盤事件
+window.addEventListener('keydown', handleKeydown);
 
-	const showimage = document.querySelector('#showimage');
-	if (showimage)
+// 監聽 #showimage DOM 變化（優化版）
+const showimageObserver = new MutationObserver((mutations) => {
+	// 檢查是否有與圖片相關的實際變化
+	let hasImageChanges = false;
+
+	for (const mutation of mutations)
 	{
-		showimageObserver.observe(showimage, { childList: true, subtree: true });
+		// 只檢查添加的節點中是否包含圖片
+		if (mutation.type === 'childList')
+		{
+			for (const node of mutation.addedNodes)
+			{
+				if (node.nodeType === Node.ELEMENT_NODE)
+				{
+					// 檢查是否為圖片元素或包含圖片
+					if (node.id === 'cp_image' || node.id === 'cp_image2' ||
+						node.tagName === 'IMG' ||
+						node.querySelector?.('#cp_image, #cp_image2, img'))
+					{
+						hasImageChanges = true;
+						break;
+					}
+				}
+			}
+		}
+
+		if (hasImageChanges) break;
 	}
 
-	// 初始化執行
-	dm5();
-	window.dispatchEvent(new Event('load.imagesLoaded'));
+	// 只有在有圖片相關變化時才執行
+	if (hasImageChanges)
+	{
+		dm5();
+		updateImageStyles();
+		setTimeout(emitResize, 300);
+	}
+});
+
+const showimage = document.querySelector('#showimage');
+if (showimage)
+{
+	// 只監聽子節點變化，不監聽屬性變化以提升性能
+	showimageObserver.observe(showimage, {
+		childList: true,
+		subtree: true
+	});
+}
+
+// 初始化執行
+dm5();
+updateImageStyles();
 
 })();
