@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         New Userscript
+// @name         DM5漫画阅读器
 // @namespace    http://tampermonkey.net/
 // @version      2026-01-10
-// @description  try to take over the world!
-// @author       You
+// @description  DM5漫画阅读器
+// @author       bluelovers
 // @match        https://www.dm5.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dm5.com
 // @grant        none
@@ -383,8 +383,8 @@ let imgElements = getImages();
 	 */
 	function handleImageClick()
 	{
-		const event = new KeyboardEvent('keydown', { which: 34, keyCode: 34 });
-		document.querySelectorAll('input').forEach(input => input.dispatchEvent(event));
+		// 模擬 PageDown 鍵盤事件
+		handleKeydown({ which: 34, keyCode: 34, preventDefault: () => {}, stopPropagation: () => {} });
 	}
 
 	// ========================================
