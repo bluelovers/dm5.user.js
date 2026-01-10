@@ -68,6 +68,17 @@
 		return document.querySelectorAll('#cp_image2, #cp_image');
 	}
 
+	/**
+	 * 停止事件傳播，可選阻止默認行為
+	 * @param {Event} event - 事件對象
+	 * @param {boolean} [mode=false] - 是否允許默認行為
+	 */
+	function _uf_done(event, mode)
+	{
+		event.stopPropagation();
+		if (!mode) event.preventDefault();
+	}
+
 	// ========================================
 	// 主程式
 	// ========================================
@@ -206,8 +217,7 @@
 			const preLinks = document.querySelectorAll('#s_pre a, a.s_pre');
 			if (preLinks.length > 0)
 			{
-				event.preventDefault();
-				event.stopPropagation();
+				_uf_done(event);
 				preLinks[0].click();
 				setTimeout(scrollToImage, 0);
 			}
@@ -218,8 +228,7 @@
 			const nextLinks = document.querySelectorAll('#s_next a, a.s_next, #last-win:visible a.view-btn-next');
 			for (const link of nextLinks)
 			{
-				event.preventDefault();
-				event.stopPropagation();
+				_uf_done(event);
 
 				// 優先使用原生的 ShowNext 函數
 				if (!link.classList.contains('view-btn-next') && typeof unsafeWindow !== 'undefined' && unsafeWindow.ShowNext)
