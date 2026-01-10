@@ -2,7 +2,7 @@
 // @name         DM5漫画阅读器
 // @namespace    http://tampermonkey.net/
 // @version      2026-01-10
-// @description  DM5漫画阅读器
+// @description  DM5漫画阅读器，支持键盘导航、自动调整图片大小及显示当前页数。
 // @author       bluelovers
 // @match        https://www.dm5.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dm5.com
@@ -12,6 +12,8 @@
 (function ()
 {
 	'use strict';
+
+	const KEYCODES = { pageup: 33, left: 37, pagedown: 34, right: 39 };
 
 	// ========================================
 	// 工具函數
@@ -54,9 +56,15 @@
 	 */
 	function scrollToElement(element)
 	{
-		if (element && element.length > 0)
+		// 兼容 NodeList 和單一元素
+		if (element)
 		{
-			element[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+			const target = element.length ? element[0] : element;
+			if (target)
+			{
+				// Firefox/Chrome/Edge 都支持的平滑滾動
+				target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}
 		}
 	}
 
@@ -297,12 +305,12 @@ let imgElements = getImages();
 	 */
 	function handleKeydown(event)
 	{
-		const keycodes = { pageup: 33, left: 37, pagedown: 34, right: 39 };
-		const key = event.which;
+		// 使用 keyCode 兼容不同瀏覽器
+		const key = event.keyCode || event.which;
 
-		if ([keycodes.pageup, keycodes.left].includes(key))
+		// 上一頁：PageUp 或 左方向鍵
+		if (key === KEYCODES.pageup || key === KEYCODES.left)
 		{
-			// 上一頁
 			const preLinks = document.querySelectorAll('#s_pre a, a.s_pre');
 			if (preLinks.length > 0)
 			{
@@ -311,10 +319,12 @@ let imgElements = getImages();
 				setTimeout(scrollToImage, 0);
 			}
 		}
-		else if ([keycodes.pagedown, keycodes.right].includes(key))
+		// 下一頁：PageDown 或 右方向鍵
+		else if (key === KEYCODES.pagedown || key === KEYCODES.right)
 		{
-			// 下一頁
 			const nextLinks = document.querySelectorAll('#s_next a, a.s_next, #last-win:visible a.view-btn-next');
+			let handled = false;
+
 			for (const link of nextLinks)
 			{
 				_uf_done(event);
@@ -324,16 +334,17 @@ let imgElements = getImages();
 				{
 					unsafeWindow.ShowNext();
 					setTimeout(scrollToImage, 0);
+					handled = true;
+					break;
 				}
 				else
 				{
 					link.click();
+					handled = true;
+					break;
 				}
-				break;
 			}
 		}
-
-		setTimeout(handleResize, 300);
 	}
 
 	/**
@@ -356,35 +367,54 @@ let imgElements = getImages();
 			const containerHeight = window.innerHeight;
 			const aspectRatio = width / height;
 
-			// 計算最適合的寬度
-			let newWidth = Math.min(width, containerWidth - 40);
+			// 計算最適合的寬度（減少邊距，Firefox/Chrome/Edge 通用）
+			const margin = 40;
+			let newWidth = Math.min(width, containerWidth - margin);
 			let newHeight = newWidth / aspectRatio;
 
 			// 如果高度超出視窗，則按高度調整
-			if (newHeight > containerHeight - 40)
+			if (newHeight > containerHeight - margin)
 			{
-				newHeight = containerHeight - 40;
+				newHeight = containerHeight - margin;
 				newWidth = newHeight * aspectRatio;
 			}
 
-			img.style.width = `${newWidth}px`;
-			img.style.height = `${newHeight}px`;
-			img.style.maxWidth = '100%';
+			// 使用 CSS 樣式而非直接設置屬性，提升性能
+			img.style.cssText += `
+				width: ${newWidth}px;
+				height: ${newHeight}px;
+				max-width: 100%;
+				object-fit: contain;
+			`;
 		}).catch(err => {
 			console.error('Failed to get image size:', err);
 			// 回退到簡單的響應式樣式
-			img.style.maxWidth = '100%';
-			img.style.height = 'auto';
+			img.style.cssText += `
+				max-width: 100%;
+				height: auto;
+				object-fit: contain;
+			`;
 		});
 	}
 
 	/**
 	 * 處理圖片點擊（觸發下一頁）
 	 */
-	function handleImageClick()
+	function handleImageClick(event)
 	{
-		// 模擬 PageDown 鍵盤事件
-		handleKeydown({ which: 34, keyCode: 34, preventDefault: () => {}, stopPropagation: () => {} });
+		// 阻止圖片默認行為和事件傳播
+		_uf_done(event);
+
+		// 模擬 PageDown 鍵盤事件（使用正確的事件對象）
+		const keydownEvent = new KeyboardEvent('keydown', {
+			key: 'PageDown',
+			keyCode: KEYCODES.pagedown,
+			which: KEYCODES.pagedown,
+			bubbles: true,
+			cancelable: true
+		});
+
+		document.dispatchEvent(keydownEvent);
 	}
 
 	// ========================================
@@ -530,7 +560,10 @@ if (showimage)
 }
 
 // 初始化執行
-dm5();
-updateImageStyles();
+// 使用 requestAnimationFrame 確保 DOM 準備好
+requestAnimationFrame(() => {
+	dm5();
+	updateImageStyles();
+});
 
 })();
