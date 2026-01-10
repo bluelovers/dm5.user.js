@@ -13,6 +13,13 @@
 {
 	'use strict';
 
+	// ========================================
+	// 工具函數
+	// ========================================
+
+	/**
+	 * 防抖函數 - 延遲執行，在等待期間再次觸發會重置計時器
+	 */
 	function debounce(func, wait)
 	{
 		let timeout;
@@ -25,6 +32,9 @@
 		};
 	}
 
+	/**
+	 * 節流函數 - 限制執行頻率，在指定時間內只執行一次
+	 */
 	function throttle(func, wait)
 	{
 		let lastTime = 0;
@@ -39,6 +49,9 @@
 		};
 	}
 
+	/**
+	 * 滾動到指定元素
+	 */
 	function scrollToElement(element)
 	{
 		if (element && element.length > 0)
@@ -47,225 +60,281 @@
 		}
 	}
 
-	const imgSelector = '#cp_image2:visible, #cp_image:visible';
-
-	if (document.querySelector('body.vPage') || document.querySelector('#showimage'))
+	/**
+	 * 獲取圖片元素
+	 */
+	function getImages()
 	{
-		let imgElements = document.querySelectorAll(imgSelector);
-		let divPage = document.createElement('div');
-		divPage.style.cssText = `
-			position: absolute;
-			background-color: rgba(0, 0, 0, 0.8);
-			color: white;
-			padding: 8px 12px;
-			border-radius: 4px;
-			font-size: 14px;
-			z-index: 10000;
-			border: 1px solid rgba(255, 255, 255, 0.2);
-		`;
-		document.body.appendChild(divPage);
+		return document.querySelectorAll('#cp_image2, #cp_image');
+	}
 
-		const style = document.createElement('style');
-		style.textContent = `
+	// ========================================
+	// 主程式
+	// ========================================
+
+	// 只在漫畫閱讀頁面執行
+	if (!document.querySelector('body.vPage') && !document.querySelector('#showimage'))
+	{
+		return;
+	}
+
+	let imgElements = getImages();
+
+	// 創建頁數顯示的浮動元素
+	const divPage = document.createElement('div');
+	divPage.style.cssText = `
+		position: absolute;
+		background-color: rgba(0, 0, 0, 0.8);
+		color: white;
+		padding: 8px 12px;
+		border-radius: 4px;
+		font-size: 14px;
+		z-index: 10000;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+	`;
+	document.body.appendChild(divPage);
+
+	// 添加樣式：工具欄透明度
+	document.head.insertAdjacentHTML('beforeend', `
+		<style>
 			.rightToolBar { opacity: 0.1; }
 			.rightToolBar:hover { opacity: 1; }
-		`;
-		document.head.appendChild(style);
+		</style>
+	`);
 
-		function scrollToImage()
+	// ========================================
+	// 事件處理器
+	// ========================================
+
+	/**
+	 * 滾動到當前圖片視圖
+	 */
+	function scrollToImage()
+	{
+		const imgs = getImages();
+		if (imgs.length > 0)
 		{
-			const imgs = document.querySelectorAll(imgSelector);
-			const showimage = document.querySelector('#showimage');
-			const cpImg = document.querySelector('#cp_img');
-			if (imgs.length > 0)
+			imgs[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+	}
+
+	/**
+	 * 觸發 resize 事件（節流）
+	 */
+	const emitResize = throttle(300, () => {
+		window.dispatchEvent(new Event('resize'));
+	});
+
+	/**
+	 * 更新圖片樣式和頁數顯示
+	 */
+	function updateImageStyles()
+	{
+		imgElements = getImages();
+
+		// 設置圖片響應式樣式
+		imgElements.forEach(img => {
+			img.style.maxWidth = '100%';
+			img.style.height = 'auto';
+		});
+
+		// 更新頁數顯示
+		if (typeof unsafeWindow !== 'undefined' && unsafeWindow.DM5_PAGE && unsafeWindow.DM5_IMAGE_COUNT)
+		{
+			divPage.textContent = `${unsafeWindow.DM5_PAGE}/${unsafeWindow.DM5_IMAGE_COUNT}`;
+
+			// 添加錨點（用於頁面跳轉）
+			if (!document.querySelector(`#showimage #ipg${unsafeWindow.DM5_PAGE + 1}`))
 			{
-				imgs[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+				const showimage = document.querySelector('#showimage');
+				if (showimage)
+				{
+					const anchor = document.createElement('a');
+					anchor.id = `ipg${unsafeWindow.DM5_PAGE + 1}`;
+					anchor.name = `ipg${unsafeWindow.DM5_PAGE + 1}`;
+					showimage.insertBefore(anchor, showimage.firstChild);
+				}
 			}
 		}
 
-		const emitResize = throttle(300, () => {
-			window.dispatchEvent(new Event('resize'));
-		});
+		// 定位頁數顯示元素到圖片左上方
+		if (imgElements.length > 0)
+		{
+			const img = imgElements[0];
+			const imgRect = img.getBoundingClientRect();
+			const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
+			const scrollTop = window.scrollY || document.documentElement.scrollTop;
 
-		window.addEventListener('resize.scroll', () => {
-			imgElements = document.querySelectorAll(imgSelector);
+			divPage.style.top = `${scrollTop + imgRect.top + 50}px`;
+			divPage.style.left = `${scrollLeft + imgRect.left - divPage.offsetWidth}px`;
+		}
+	}
 
-			const showimage = document.querySelector('#showimage');
-			if (showimage)
-			{
-				showimage.style.minHeight = window.innerHeight + 'px';
-			}
+	/**
+	 * 處理窗口大小調整
+	 */
+	function handleResize()
+	{
+		imgElements = getImages();
 
-			document.body.style.minWidth = 'auto';
-			document.body.style.backgroundColor = '#1a1a1a';
-
-			scrollToElement(document.querySelectorAll(imgSelector));
-		});
-
-		window.addEventListener('resize.imagesLoaded', () => {
-			imgElements = document.querySelectorAll(imgSelector);
-
-			imgElements.forEach(img => {
-				img.style.maxWidth = '100%';
-				img.style.height = 'auto';
-			});
-
-			if (typeof unsafeWindow !== 'undefined' && unsafeWindow.DM5_PAGE && unsafeWindow.DM5_IMAGE_COUNT)
-			{
-				divPage.textContent = unsafeWindow.DM5_PAGE + '/' + unsafeWindow.DM5_IMAGE_COUNT;
-
-				if (!document.querySelector(`#showimage #ipg${unsafeWindow.DM5_PAGE + 1}`))
-				{
-					const showimage = document.querySelector('#showimage');
-					if (showimage)
-					{
-						const anchor = document.createElement('a');
-						anchor.id = `ipg${unsafeWindow.DM5_PAGE + 1}`;
-						anchor.name = `ipg${unsafeWindow.DM5_PAGE + 1}`;
-						showimage.insertBefore(anchor, showimage.firstChild);
-					}
-				}
-			}
-
-			if (imgElements.length > 0)
-			{
-				const img = imgElements[0];
-				const imgRect = img.getBoundingClientRect();
-				const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
-				const scrollTop = window.scrollY || document.documentElement.scrollTop;
-
-				divPage.style.top = (scrollTop + imgRect.top + 50) + 'px';
-				divPage.style.left = (scrollLeft + imgRect.left - divPage.offsetWidth) + 'px';
-			}
-		});
-
-		window.addEventListener('load', () => {
-			dm5();
-		});
-
-		window.addEventListener('load.imagesLoaded', () => {
-			window.dispatchEvent(new Event('load.nocontextmenu'));
-			window.dispatchEvent(new Event('resize'));
-		});
-
-		window.addEventListener('keydown.page', (event) => {
-			const keycodes = {
-				'pageup': 33,
-				'left': 37,
-				'pagedown': 34,
-				'right': 39
-			};
-
-			switch (event.which)
-			{
-				case keycodes.pageup:
-				case keycodes.left:
-					{
-						const preLinks = document.querySelectorAll('#s_pre a, a.s_pre');
-						if (preLinks.length > 0)
-						{
-							event.preventDefault();
-							event.stopPropagation();
-							preLinks[0].click();
-							setTimeout(scrollToImage, 0);
-						}
-					}
-					break;
-				case keycodes.pagedown:
-				case keycodes.right:
-					{
-						const nextLinks = document.querySelectorAll('#s_next a, a.s_next, #last-win:visible a.view-btn-next');
-						let clicked = false;
-						for (let link of nextLinks)
-						{
-							if (!link.classList.contains('view-btn-next') && typeof unsafeWindow !== 'undefined' && unsafeWindow.ShowNext)
-							{
-								event.preventDefault();
-								event.stopPropagation();
-								unsafeWindow.ShowNext();
-								setTimeout(scrollToImage, 0);
-								clicked = true;
-								break;
-							}
-							else
-							{
-								event.preventDefault();
-								event.stopPropagation();
-								link.click();
-								clicked = true;
-								break;
-							}
-						}
-					}
-					break;
-			}
-
-			setTimeout(emitResize, 300);
-		});
-
-		const showimageObserver = new MutationObserver(() => {
-			dm5();
-			window.dispatchEvent(new Event('load.imagesLoaded'));
-			setTimeout(emitResize, 300);
-		});
-
+		// 設置 #showimage 容器高度
 		const showimage = document.querySelector('#showimage');
 		if (showimage)
 		{
-			showimageObserver.observe(showimage, { childList: true, subtree: true });
+			showimage.style.minHeight = `${window.innerHeight}px`;
 		}
 
-		function dm5()
+		// 設置 body 樣式
+		document.body.style.minWidth = 'auto';
+		document.body.style.backgroundColor = '#1a1a1a';
+
+		// 滾動到圖片
+		scrollToElement(getImages());
+	}
+
+	/**
+	 * 處理鍵盤導航
+	 */
+	function handleKeydown(event)
+	{
+		const keycodes = { pageup: 33, left: 37, pagedown: 34, right: 39 };
+		const key = event.which;
+
+		if ([keycodes.pageup, keycodes.left].includes(key))
 		{
-			return new Promise((resolve, reject) => {
-				const checkInterval = setInterval(() => {
-					imgElements = document.querySelectorAll(imgSelector);
-
-					if (imgElements.length > 0)
-					{
-						clearInterval(checkInterval);
-						resolve(imgElements);
-					}
-				}, 100);
-
-				setTimeout(() => {
-					clearInterval(checkInterval);
-					reject(imgElements);
-				}, 5000);
-			}).then(imgElements => {
-				imgElements.forEach(img => {
-					img.removeAttribute('oncontextmenu');
-
-					img.removeEventListener('load', handleImageLoad);
-					img.addEventListener('load', handleImageLoad);
-
-					img.removeEventListener('click', handleImageClick);
-					img.addEventListener('click', handleImageClick);
-				});
-
-				window.dispatchEvent(new Event('load.imagesLoaded'));
-			}).catch(() => {
-				console.error('Failed to load images');
-			});
+			// 上一頁
+			const preLinks = document.querySelectorAll('#s_pre a, a.s_pre');
+			if (preLinks.length > 0)
+			{
+				event.preventDefault();
+				event.stopPropagation();
+				preLinks[0].click();
+				setTimeout(scrollToImage, 0);
+			}
 		}
-
-		function handleImageLoad()
+		else if ([keycodes.pagedown, keycodes.right].includes(key))
 		{
-			window.dispatchEvent(new Event('load.imagesLoaded'));
+			// 下一頁
+			const nextLinks = document.querySelectorAll('#s_next a, a.s_next, #last-win:visible a.view-btn-next');
+			for (const link of nextLinks)
+			{
+				event.preventDefault();
+				event.stopPropagation();
+
+				// 優先使用原生的 ShowNext 函數
+				if (!link.classList.contains('view-btn-next') && typeof unsafeWindow !== 'undefined' && unsafeWindow.ShowNext)
+				{
+					unsafeWindow.ShowNext();
+					setTimeout(scrollToImage, 0);
+				}
+				else
+				{
+					link.click();
+				}
+				break;
+			}
 		}
 
-		function handleImageClick()
-		{
-			const event = new KeyboardEvent('keydown', {
-				which: 34,
-				keyCode: 34
-			});
-			document.querySelectorAll('input').forEach(input => {
-				input.dispatchEvent(event);
-			});
-		}
+		setTimeout(emitResize, 300);
+	}
 
-		dm5();
+	/**
+	 * 處理圖片加載完成
+	 */
+	function handleImageLoad()
+	{
 		window.dispatchEvent(new Event('load.imagesLoaded'));
 	}
+
+	/**
+	 * 處理圖片點擊（觸發下一頁）
+	 */
+	function handleImageClick()
+	{
+		const event = new KeyboardEvent('keydown', { which: 34, keyCode: 34 });
+		document.querySelectorAll('input').forEach(input => input.dispatchEvent(event));
+	}
+
+	// ========================================
+	// 初始化圖片元素
+	// ========================================
+
+	/**
+	 * 初始化圖片：移除右鍵限制，添加事件監聽
+	 */
+	function initImages()
+	{
+		imgElements.forEach(img => {
+			img.removeAttribute('oncontextmenu');
+			img.addEventListener('load', handleImageLoad);
+			img.addEventListener('click', handleImageClick);
+		});
+	}
+
+	/**
+	 * 等待並初始化圖片
+	 */
+	function waitForImages()
+	{
+		return new Promise((resolve, reject) => {
+			let count = 0;
+			const checkInterval = setInterval(() => {
+				imgElements = getImages();
+
+				if (imgElements.length > 0)
+				{
+					clearInterval(checkInterval);
+					resolve(imgElements);
+				}
+
+				if (count++ > 50)
+				{
+					clearInterval(checkInterval);
+					reject(imgElements);
+				}
+			}, 100);
+		}).then(initImages).catch(() => console.error('Failed to load images'));
+	}
+
+	/**
+	 * 主要的圖片初始化邏輯
+	 */
+	function dm5()
+	{
+		waitForImages().then(() => {
+			window.dispatchEvent(new Event('load.imagesLoaded'));
+		});
+	}
+
+	// ========================================
+	// 事件監聽器綁定
+	// ========================================
+
+	// 窗口事件
+	window.addEventListener('resize.scroll', handleResize);
+	window.addEventListener('resize.imagesLoaded', updateImageStyles);
+	window.addEventListener('load', dm5);
+	window.addEventListener('load.imagesLoaded', () => {
+		window.dispatchEvent(new Event('load.nocontextmenu'));
+		window.dispatchEvent(new Event('resize'));
+	});
+	window.addEventListener('keydown.page', handleKeydown);
+
+	// 監聽 #showimage DOM 變化
+	const showimageObserver = new MutationObserver(() => {
+		dm5();
+		window.dispatchEvent(new Event('load.imagesLoaded'));
+		setTimeout(emitResize, 300);
+	});
+
+	const showimage = document.querySelector('#showimage');
+	if (showimage)
+	{
+		showimageObserver.observe(showimage, { childList: true, subtree: true });
+	}
+
+	// 初始化執行
+	dm5();
+	window.dispatchEvent(new Event('load.imagesLoaded'));
+
 })();
