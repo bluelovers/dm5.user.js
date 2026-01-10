@@ -137,16 +137,96 @@
 	});
 
 	/**
+ * 取得圖片尺寸 (naturalWidth / naturalHeight)
+ * 在各種狀況下都能穩定回傳 Promise
+ */
+	function getImageSize(img)
+	{
+		return new Promise((resolve, reject) =>
+		{
+			let resolved = false;
+
+			// 方法一：快取檢查
+			if (img.complete && img.naturalWidth > 0)
+			{
+				resolved = true;
+				return resolve({
+					width: img.naturalWidth,
+					height: img.naturalHeight,
+					method: "cache"
+				});
+			}
+
+			// 方法二：輪詢 (在 load 前可能就能拿到)
+			const checkSize = setInterval(() =>
+			{
+				if (img.naturalWidth > 0 && img.naturalHeight > 0 && !resolved)
+				{
+					resolved = true;
+					clearInterval(checkSize);
+					resolve({
+						width: img.naturalWidth,
+						height: img.naturalHeight,
+						method: "polling"
+					});
+				}
+			}, 50);
+
+			// 方法三：decode()（非同步解碼）
+			img.decode().then(() =>
+			{
+				if (!resolved)
+				{
+					resolved = true;
+					clearInterval(checkSize);
+					resolve({
+						width: img.naturalWidth,
+						height: img.naturalHeight,
+						method: "decode"
+					});
+				}
+			}).catch(() =>
+			{
+				// decode 失敗時忽略，交給 onload/onerror
+			});
+
+			// 方法四：onload（保險做法）
+			img.onload = () =>
+			{
+				if (!resolved)
+				{
+					resolved = true;
+					clearInterval(checkSize);
+					resolve({
+						width: img.naturalWidth,
+						height: img.naturalHeight,
+						method: "onload"
+					});
+				}
+			};
+
+			// 方法五：onerror（錯誤處理）
+			img.onerror = (e) =>
+			{
+				clearInterval(checkSize);
+				if (!resolved)
+				{
+					reject(new Error("圖片載入失敗: " + src));
+				}
+			};
+		});
+	}
+
+	/**
 	 * 更新圖片樣式和頁數顯示
 	 */
 	function updateImageStyles()
 	{
 		imgElements = getImages();
 
-		// 設置圖片響應式樣式
+		// 使用 getImageSize 調整每張圖片的尺寸
 		imgElements.forEach(img => {
-			img.style.maxWidth = '100%';
-			img.style.height = 'auto';
+			adjustImageSize(img);
 		});
 
 		// 更新頁數顯示
@@ -256,6 +336,39 @@
 	}
 
 	/**
+	 * 處理圖片尺寸調整
+	 */
+	function adjustImageSize(img)
+	{
+		getImageSize(img).then(({ width, height }) => {
+			// 根據窗口大小和圖片比例調整圖片顯示
+			const containerWidth = window.innerWidth;
+			const containerHeight = window.innerHeight;
+			const aspectRatio = width / height;
+
+			// 計算最適合的寬度
+			let newWidth = Math.min(width, containerWidth - 40);
+			let newHeight = newWidth / aspectRatio;
+
+			// 如果高度超出視窗，則按高度調整
+			if (newHeight > containerHeight - 40)
+			{
+				newHeight = containerHeight - 40;
+				newWidth = newHeight * aspectRatio;
+			}
+
+			img.style.width = `${newWidth}px`;
+			img.style.height = `${newHeight}px`;
+			img.style.maxWidth = '100%';
+		}).catch(err => {
+			console.error('Failed to get image size:', err);
+			// 回退到簡單的響應式樣式
+			img.style.maxWidth = '100%';
+			img.style.height = 'auto';
+		});
+	}
+
+	/**
 	 * 處理圖片點擊（觸發下一頁）
 	 */
 	function handleImageClick()
@@ -265,11 +378,66 @@
 	}
 
 	// ========================================
+	// DOM 監控
+	// ========================================
+
+	/**
+	 * 使用 MutationObserver 等待圖片元素出現
+	 */
+	function waitForImages()
+	{
+		return new Promise((resolve, reject) => {
+			imgElements = getImages();
+
+			// 如果圖片已存在，直接返回
+			if (imgElements.length > 0)
+			{
+				resolve(imgElements);
+				return;
+			}
+
+			// 使用 MutationObserver 監聽 #showimage 的 DOM 變化
+			const observer = new MutationObserver((mutations, obs) => {
+				imgElements = getImages();
+				if (imgElements.length > 0)
+				{
+					obs.disconnect();
+					resolve(imgElements);
+				}
+			});
+
+			// 監聽 #showimage 的 DOM 變化
+			const showimage = document.querySelector('#showimage');
+			if (showimage)
+			{
+				observer.observe(showimage, {
+					childList: true,
+					subtree: true
+				});
+			}
+			else
+			{
+				// 如果 #showimage 不存在，監聽 body
+				observer.observe(document.body, {
+					childList: true,
+					subtree: true
+				});
+			}
+
+			// 設置超時，避免永久等待
+			setTimeout(() => {
+				observer.disconnect();
+				reject(imgElements);
+			}, 5000);
+		}).then(initImages).catch(() => console.error('Failed to load images'));
+	}
+
+	// ========================================
 	// 初始化圖片元素
 	// ========================================
 
 	/**
-	 * 初始化圖片：移除右鍵限制，添加事件監聽
+	 * 初始化圖片：移除右鍵限制，添加事件監聽，調整尺寸
 	 */
 	function initImages()
 	{
@@ -277,32 +445,9 @@
 			img.removeAttribute('oncontextmenu');
 			img.addEventListener('load', handleImageLoad);
 			img.addEventListener('click', handleImageClick);
+			// 調整圖片尺寸
+			adjustImageSize(img);
 		});
-	}
-
-	/**
-	 * 等待並初始化圖片
-	 */
-	function waitForImages()
-	{
-		return new Promise((resolve, reject) => {
-			let count = 0;
-			const checkInterval = setInterval(() => {
-				imgElements = getImages();
-
-				if (imgElements.length > 0)
-				{
-					clearInterval(checkInterval);
-					resolve(imgElements);
-				}
-
-				if (count++ > 50)
-				{
-					clearInterval(checkInterval);
-					reject(imgElements);
-				}
-			}, 100);
-		}).then(initImages).catch(() => console.error('Failed to load images'));
 	}
 
 	/**
