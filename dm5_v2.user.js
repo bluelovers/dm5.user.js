@@ -494,9 +494,9 @@
 		document.querySelector('.end_mian .end_top .new_h4 a, .finalPage .topBar .right > a:has(img[src*="finalPage_4_w.png"])')?.click();
 		return;
 	}
-	else if (window.location.pathname?.match(/comichistory|bookmarker/))
+	else if (window.location.pathname?.match(/comichistory|bookmarker|search|manhua-.+/))
 	{
-		let ls = document.querySelectorAll('.mh-list .mh-item');
+		let ls = document.querySelectorAll('.mh-list .mh-item, .mh-list .mh-itme-top');
 
 		document.head.insertAdjacentHTML('beforeend', `
 		<style>
@@ -509,7 +509,7 @@
 			let a01 = mh.querySelector('.zl a');
 			let a02 = mh.querySelector('.chapter a');
 
-			console.log(mh, a01, a02);
+			//console.log(mh, a01, a02);
 
 			mh.querySelectorAll('a').forEach(a => {
 				a.target = '_blank';
@@ -518,6 +518,69 @@
 			if (a01?.textContent?.trim() === a02?.textContent?.trim())
 			{
 				mh.classList.add('uf-mh-item-same');
+			}
+		});
+
+		window.addEventListener('keydown', (event) => {
+			const key = event.keyCode || event.which;
+
+			let _a;
+
+			switch (key)
+			{
+				case KEYCODES.pageup:
+				case KEYCODES.left:
+
+					let el = document.querySelector('#search_fy a + .current');
+
+					if (el)
+					{
+						// 純 JS 實現 prev('a')
+						let prevA = el.previousElementSibling;
+						while (prevA && prevA.tagName !== 'A')
+						{
+							prevA = prevA.previousElementSibling;
+						}
+						if (prevA.tagName === 'A')
+						{
+							_a = prevA;
+						}
+					}
+
+					if (!_a)
+					{
+						_a = null;
+
+						for (el of document.querySelectorAll('.page-pagination a'))
+						{
+							if (el.classList.contains('active'))
+							{
+								break;
+							}
+
+							_a = el;
+						}
+					}
+
+					if (_a)
+					{
+						_uf_done(event);
+						_a.click();
+					}
+					
+					break;
+				case KEYCODES.pagedown:
+				case KEYCODES.right:
+
+					_a = document.querySelector('#search_fy .current + a, .page-pagination li:has(a.active) + li a');
+
+					if (_a)
+					{
+						_uf_done(event);
+						_a.click();
+					}
+
+					break;
 			}
 		});
 
@@ -1065,6 +1128,10 @@ let imgElements = getImages();
 	{
 		waitForImages().then(async () => {
 			// console.log('dm5', imgElements);
+
+			_uf_disable_nocontextmenu(2,
+				'#cp_image2, #cp_image, #cp_img, #showimage, #cp_funtb, .cp_tbimg, .view_bt, #showimage *'
+			);
 
 			// 初始化圖片：移除右鍵限制，添加事件監聽
 			imgElements.forEach(img => {
