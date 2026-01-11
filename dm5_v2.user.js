@@ -118,23 +118,6 @@
 	}
 
 	/**
-	 * 滾動到指定元素
-	 */
-	function scrollToElement(element)
-	{
-		if (element)
-		{
-			const list = toList(element);
-			const target = firstListValue(list);
-			if (target)
-			{
-				// Firefox/Chrome/Edge 都支持的平滑滾動
-				target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-			}
-		}
-	}
-
-	/**
 	 * 獲取圖片元素
 	 */
 	function getImages()
@@ -169,6 +152,58 @@
 		{
 			return el;
 		}
+	}
+
+	/**
+	 * 檢測元素是否可見
+	 * @param {HTMLElement} element - 要檢測的元素
+	 * @returns {boolean} 元素是否可見
+	 */
+	function isVisible(element)
+	{
+		if (!element || !(element instanceof HTMLElement))
+		{
+			return false;
+		}
+
+		// 檢查 offsetParent（如果為 null 則元素不可見）
+		if (element.offsetParent === null)
+		{
+			console.log('isVisible:false', 'offsetParent', element);
+			return false;
+		}
+
+		// 檢查 display 樣式
+		const style = window.getComputedStyle(element);
+		if (style.display === 'none')
+		{
+			console.log('isVisible:false', 'display', element);
+
+			return false;
+		}
+
+		// 檢查 visibility 樣式
+		if (style.visibility === 'hidden')
+		{
+			console.log('isVisible:false', 'visibility', element);
+			return false;
+		}
+
+		// 檢查 opacity
+		if (style.opacity === '0')
+		{
+			console.log('isVisible:false', 'opacity', element);
+			return false;
+		}
+
+		// 檢查尺寸
+		if (element.offsetWidth === 0 || element.offsetHeight === 0)
+		{
+			console.log('isVisible:false', 'offsetWidth', element);
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -407,16 +442,53 @@ let imgElements = getImages();
 	}
 
 	/**
+	 * 滾動到指定元素
+	 */
+	function scrollToElement(element)
+	{
+		if (element)
+		{
+			const list = toList(element);
+			let target = null;
+
+			// 過濾找出第一個可見元素
+			for (const el of list)
+			{
+				if (isVisible(el))
+				{
+					target = el;
+					break;
+				}
+			}
+
+			// 如果都不可見，則以第一個元素作為目標
+			if (!target)
+			{
+				target = firstListValue(list);
+			}
+
+			if (target)
+			{
+				console.log('scrollToElement', target, target.getBoundingClientRect?.());
+				// Firefox/Chrome/Edge 都支持的平滑滾動
+				target.scrollIntoView({ behavior: 'instant', block: 'start' });
+			}
+		}
+	}
+
+	/**
 	 * 滾動到當前圖片視圖
 	 */
 	function scrollToImage()
 	{
-		let imgElements = getImages();
+		let imgElements = document.querySelector(`#showimage, #${_getAnchorID()}`);
 
-		if (!imgElements.length)
+		if (!imgElements)
 		{
-			imgElements = document.querySelector(`#showimage, #${_getAnchorID()}`);
+			imgElements = getImages(); 
 		}
+
+		console.log('scrollToImage', imgElements, window.scrollX, window.scrollY, document.querySelector(`#showimage`));
 
 		scrollToElement(imgElements);
 	}
@@ -451,8 +523,7 @@ let imgElements = getImages();
 			}
 		}
 
-		// 滾動到圖片
-		scrollToImage();
+		updatePageText();
 	}
 
 	function updatePageText()
@@ -483,6 +554,8 @@ let imgElements = getImages();
 				}
 			}
 		}
+
+		scrollToImage();
 	}
 
 	/**
@@ -490,10 +563,7 @@ let imgElements = getImages();
 	 */
 	function handleResize()
 	{
-		updatePageText();
-
-		imgElements = getImages();
-
+		console.log('handleResize');
 		// 更新圖片樣式
 		updateImageStyles();
 	}
@@ -782,6 +852,96 @@ let imgElements = getImages();
 		}).catch(() => console.error('Failed to load images'));
 	}
 
+	/**
+ * 取得圖片尺寸 (naturalWidth / naturalHeight)
+ * 在各種狀況下都能穩定回傳 Promise
+ */
+	function getImageSize(img)
+	{
+		let checkSize;
+
+		return new Promise((resolve, reject) =>
+		{
+			let resolved = false;
+
+			const my_resolve = (value) => {
+				clearInterval(checkSize);
+				console.log('getImageSize', 'resolve', resolved, value, img);
+				resolved = true;
+				return resolve(value);
+			};
+
+			const my_reject = (value) =>
+			{
+				clearInterval(checkSize);
+				console.log('getImageSize', 'reject', resolved, value, img);
+				resolved = true;
+				return reject(value);
+			};
+
+			// 方法一：快取檢查
+			if (img.complete && img.naturalWidth > 0)
+			{
+				return my_resolve({
+					width: img.naturalWidth,
+					height: img.naturalHeight,
+					method: "cache"
+				});
+			}
+
+			// 方法二：輪詢 (在 load 前可能就能拿到)
+			checkSize = setInterval(() =>
+			{
+				if (img.naturalWidth > 0 && img.naturalHeight > 0 && !resolved)
+				{
+					my_resolve({
+						width: img.naturalWidth,
+						height: img.naturalHeight,
+						method: "polling"
+					});
+				}
+			}, 50);
+
+			// 方法三：decode()（非同步解碼）
+			img.decode().then(() =>
+			{
+				if (!resolved)
+				{
+					my_resolve({
+						width: img.naturalWidth,
+						height: img.naturalHeight,
+						method: "decode"
+					});
+				}
+			}).catch(() =>
+			{
+				// decode 失敗時忽略，交給 onload/onerror
+			});
+
+			// 方法四：onload（保險做法）
+			img.onload = () =>
+			{
+				if (!resolved)
+				{
+					my_resolve({
+						width: img.naturalWidth,
+						height: img.naturalHeight,
+						method: "onload"
+					});
+				}
+			};
+
+			// 方法五：onerror（錯誤處理）
+			img.onerror = (e) =>
+			{
+				if (!resolved)
+				{
+					my_reject(new Error("圖片載入失敗: " + src));
+				}
+			};
+		});
+	}
+
 	// ========================================
 	// 初始化圖片元素
 	// ========================================
@@ -791,7 +951,7 @@ let imgElements = getImages();
 	 */
 	function dm5()
 	{
-		waitForImages().then(() => {
+		waitForImages().then(async () => {
 			console.log('dm5', imgElements);
 
 			// 初始化圖片：移除右鍵限制，添加事件監聽
@@ -805,11 +965,13 @@ let imgElements = getImages();
 				img.addEventListener('click', handleImageClick);
 			});
 
+			await getImageSize(imgElements[0]).catch(e => {});
+
 			// 更新圖片樣式
 			updateImageStyles();
 			setTimeout(emitResize, 300);
 		});
-	}
+	};
 
 // ========================================
 // 事件監聽器綁定
@@ -837,9 +999,9 @@ const showimageObserver = new MutationObserver((mutations) => {
 				if (node.nodeType === Node.ELEMENT_NODE)
 				{
 					// 檢查是否為圖片元素或包含圖片
-					if (node.id === 'cp_image' || node.id === 'cp_image2' ||
+					if (node.id === 'cp_image' ||
 						node.tagName === 'IMG' ||
-						node.querySelector?.('#cp_image, #cp_image2, img'))
+						node.querySelector?.('#cp_image'))
 					{
 						hasImageChanges = true;
 						break;
@@ -855,7 +1017,7 @@ const showimageObserver = new MutationObserver((mutations) => {
 	if (hasImageChanges)
 	{
 		dm5();
-		updateImageStyles();
+		//updateImageStyles();
 		setTimeout(emitResize, 300);
 	}
 });
@@ -869,6 +1031,8 @@ if (showimage)
 		subtree: true
 	});
 }
+
+	applyStyles(document.body, comic_style.body, comic_style.bg_dark);
 
 // 初始化執行
 // 使用 requestAnimationFrame 確保 DOM 準備好
