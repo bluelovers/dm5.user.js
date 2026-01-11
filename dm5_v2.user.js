@@ -107,14 +107,13 @@
 	 */
 	function scrollToElement(element)
 	{
-		// 兼容 NodeList 和單一元素
 		if (element)
 		{
-			const target = element.length ? element[0] : element;
-			if (target)
+			const list = toList(element);
+			if (list.length > 0)
 			{
 				// Firefox/Chrome/Edge 都支持的平滑滾動
-				target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				list[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
 			}
 		}
 	}
@@ -138,22 +137,39 @@
 		if (!mode) event.preventDefault();
 	}
 
-	/**
-	 * 合併並應用多個 CSS 樣式對象到元素
-	 * @param {HTMLElement} element - 目標元素
-	 * @param {...Object} styles - 一個或多個樣式對象
-	 * @returns {HTMLElement} 返回元素本身，支持鏈式調用
-	 */
-	function applyStyles(element, ...styles)
+	function toList(element)
 	{
-		if (!element || !(element instanceof HTMLElement))
+		if (element instanceof NodeList || Array.isArray(element))
 		{
 			return element;
 		}
 
-		// 應用樣式到元素
-		Object.assign(element.style, {
-			...styles
+		return [element];
+	}
+
+	/**
+	 * 合併並應用多個 CSS 樣式對象到元素
+	 * @param {HTMLElement|NodeList|Array} element - 目標元素或元素集合
+	 * @param {...Object} styles - 一個或多個樣式對象
+	 * @returns {HTMLElement|NodeList|Array} 返回元素本身，支持鏈式調用
+	 */
+	function applyStyles(element, ...styles)
+	{
+		if (!element || !styles?.length) return element;
+
+		toList(element).forEach(el => {
+			if (el.style)
+			{
+				styles.forEach(style => {
+					for (const key in style)
+					{
+						if (style.hasOwnProperty(key))
+						{
+							el.style[key] = style[key];
+						}
+					}
+				});
+			}
 		});
 
 		return element;
@@ -200,7 +216,13 @@ let imgElements = getImages();
 	 */
 	function scrollToImage()
 	{
-		scrollToElement(getImages());
+		let imgElements = toList(getImages());
+
+		const area = document.querySelector(`#showimage, #showimage #ipg${unsafeWindow.DM5_PAGE + 1}`);
+
+		area && imgElements.push(area);
+
+		scrollToElement(imgElements);
 	}
 
 	/**
@@ -265,14 +287,11 @@ let imgElements = getImages();
 			showimage.style.minHeight = `${window.innerHeight}px`;
 		}
 
-		// 設置 body 樣式
-		applyStyles(document.body, comic_style.body, { 'background-color': '#1a1a1a' });
+		// 更新圖片樣式
+		updateImageStyles();
 
 		// 滾動到圖片
 		scrollToElement(imgElements);
-
-		// 更新圖片樣式
-		updateImageStyles();
 	}
 
 	/**
@@ -342,7 +361,7 @@ let imgElements = getImages();
 	 */
 	function _uf_fixsize2(who, area, force, scrollsize)
 	{
-		let elem = Array.isArray(who) || who instanceof NodeList ? who : [who];
+		let elem = toList(who);
 
 		let ok;
 
@@ -539,7 +558,7 @@ let imgElements = getImages();
 				observer.disconnect();
 				reject(imgElements);
 			}, 5000);
-		}).then(initImages).catch(() => console.error('Failed to load images'));
+		}).catch(() => console.error('Failed to load images'));
 	}
 
 	// ========================================
