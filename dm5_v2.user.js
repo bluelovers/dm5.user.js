@@ -6,7 +6,7 @@
 // @author       bluelovers
 // @match        https://www.dm5.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dm5.com
-// @grant        none
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (function ()
@@ -14,6 +14,21 @@
 	'use strict';
 
 	const KEYCODES = { pageup: 33, left: 37, pagedown: 34, right: 39 };
+
+	const lazyUnsafeWindow = (() =>
+	{
+		if (typeof unsafeWindow !== 'undefined')
+		{
+			return unsafeWindow;
+		}
+		
+		return window;
+	})();
+
+	/**
+	 * 觸發 resize（節流）
+	 */
+	const emitResize = throttle(300, handleResize);
 
 	// ========================================
 	// 漫畫樣式定義
@@ -110,10 +125,11 @@
 		if (element)
 		{
 			const list = toList(element);
-			if (list.length > 0)
+			const target = firstListValue(list);
+			if (target)
 			{
 				// Firefox/Chrome/Edge 都支持的平滑滾動
-				list[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+				target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 			}
 		}
 	}
@@ -147,6 +163,14 @@
 		return [element];
 	}
 
+	function firstListValue(ls)
+	{
+		for (const el of ls)
+		{
+			return el;
+		}
+	}
+
 	/**
 	 * 合併並應用多個 CSS 樣式對象到元素
 	 * @param {HTMLElement|NodeList|Array} element - 目標元素或元素集合
@@ -173,6 +197,59 @@
 		});
 
 		return element;
+	}
+
+	/**
+	 * 恢復被禁用的右鍵菜單和拖曳功能
+	 * @param {number} mode - 模式 (1=移除屬性, 2=移除屬性和事件監聽器)
+	 * @param {string} [selector] - 選擇器，默認為所有元素
+	 */
+	function _uf_disable_nocontextmenu(mode, selector)
+	{
+		const elements = selector ? document.querySelectorAll(selector) : [document.body, document.documentElement];
+
+		elements.forEach(el => {
+			if (!el || !(el instanceof HTMLElement)) return;
+
+			// 移除屬性
+			el.removeAttribute('ondragstart');
+			el.removeAttribute('oncontextmenu');
+			el.removeAttribute('onselectstart');
+			el.removeAttribute('onmousedown');
+			el.removeAttribute('onmouseup');
+
+			// 設置 CSS 樣式
+			applyStyles(el, {
+				'-moz-user-select': 'auto',
+				'-webkit-user-select': 'auto',
+				'-ms-user-select': 'auto',
+				'user-select': 'auto',
+			});
+		});
+
+		// 模式 2：額外移除事件監聽器
+		if (mode > 1)
+		{
+			const fn_events = ['dragstart', 'contextmenu', 'selectstart', 'mousedown', 'mouseup'];
+
+			elements.forEach(el => {
+				if (!el || !(el instanceof HTMLElement)) return;
+
+				fn_events.forEach(event => {
+					try
+					{
+						el.removeEventListener(event, function (e) {
+							e.preventDefault();
+							e.stopPropagation();
+						}, false);
+					}
+					catch (e)
+					{
+						console.error(e);
+					}
+				});
+			});
+		}
 	}
 
 // ========================================
@@ -213,8 +290,8 @@ let imgElements = getImages();
 
 	function _getAnchorID()
 	{
-		// return `ipg${unsafeWindow.DM5_PAGE + 1}`;
-		return `ipg_anchor`;
+		return `ipg${unsafeWindow.DM5_PAGE + 1}`;
+		// return `ipg_anchor`;
 	}
 
 	/**
@@ -222,19 +299,15 @@ let imgElements = getImages();
 	 */
 	function scrollToImage()
 	{
-		let imgElements = toList(getImages());
+		let imgElements = getImages();
 
-		const area = document.querySelector(`#showimage, #${_getAnchorID()}`);
-
-		area && imgElements.push(area);
+		if (!imgElements.length)
+		{
+			imgElements = document.querySelector(`#showimage, #${_getAnchorID()}`);
+		}
 
 		scrollToElement(imgElements);
 	}
-
-	/**
-	 * 觸發 resize（節流）
-	 */
-	const emitResize = throttle(300, handleResize);
 
 	/**
 	 * 計算圖片比例
@@ -243,10 +316,42 @@ let imgElements = getImages();
 	{
 		imgElements = getImages();
 
-		// 更新頁數顯示
-		if (typeof unsafeWindow !== 'undefined' && unsafeWindow.DM5_PAGE && unsafeWindow.DM5_IMAGE_COUNT)
+		// 使用 _uf_fixsize2 調整每張圖片的尺寸
+		if (imgElements.length > 0)
 		{
-			divPage.textContent = `${unsafeWindow.DM5_PAGE}/${unsafeWindow.DM5_IMAGE_COUNT}`;
+			applyStyles(imgElements, comic_style.photo);
+			_uf_fixsize2(imgElements, window, 1);
+
+			// 定位頁數顯示元素到圖片左上方
+			const img = firstListValue(imgElements);
+			const imgRect = img.getBoundingClientRect();
+			const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
+			const scrollTop = window.scrollY || document.documentElement.scrollTop;
+
+			divPage.style.top = `${scrollTop + imgRect.top + 50}px`;
+			divPage.style.left = `${scrollLeft + imgRect.left - divPage.offsetWidth}px`;
+
+			// 設置 #showimage 容器高度
+			const showimage = document.querySelector('#showimage');
+			if (showimage)
+			{
+				showimage.style.minHeight = `${img.height}px`;
+			}
+		}
+
+		// 滾動到圖片
+		scrollToImage();
+	}
+
+	/**
+	 * 處理窗口大小調整
+	 */
+	function handleResize()
+	{
+		// 更新頁數顯示
+		if (lazyUnsafeWindow.DM5_PAGE && lazyUnsafeWindow.DM5_IMAGE_COUNT)
+		{
+			divPage.textContent = `${lazyUnsafeWindow.DM5_PAGE}/${lazyUnsafeWindow.DM5_IMAGE_COUNT}`;
 
 			const anchor_id = _getAnchorID();
 
@@ -264,42 +369,10 @@ let imgElements = getImages();
 			}
 		}
 
-		// 使用 _uf_fixsize2 調整每張圖片的尺寸
-		if (imgElements.length > 0)
-		{
-			applyStyles(imgElements, comic_style.photo);
-			_uf_fixsize2(imgElements, window, 1);
-
-			// 定位頁數顯示元素到圖片左上方
-			const img = imgElements[0];
-			const imgRect = img.getBoundingClientRect();
-			const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
-			const scrollTop = window.scrollY || document.documentElement.scrollTop;
-
-			divPage.style.top = `${scrollTop + imgRect.top + 50}px`;
-			divPage.style.left = `${scrollLeft + imgRect.left - divPage.offsetWidth}px`;
-		}
-	}
-
-	/**
-	 * 處理窗口大小調整
-	 */
-	function handleResize()
-	{
 		imgElements = getImages();
-
-		// 設置 #showimage 容器高度
-		const showimage = document.querySelector('#showimage');
-		if (showimage)
-		{
-			showimage.style.minHeight = `${window.innerHeight}px`;
-		}
 
 		// 更新圖片樣式
 		updateImageStyles();
-
-		// 滾動到圖片
-		scrollToElement(imgElements);
 	}
 
 	/**
@@ -309,47 +382,66 @@ let imgElements = getImages();
 	{
 		// 使用 keyCode 兼容不同瀏覽器
 		const key = event.keyCode || event.which;
+		let handled = false;
+
+		console.log('handleKeydown', key, typeof lazyUnsafeWindow !== 'undefined');
 
 		// 上一頁：PageUp 或 左方向鍵
 		if (key === KEYCODES.pageup || key === KEYCODES.left)
 		{
-			const preLinks = document.querySelectorAll('#s_pre a, a.s_pre');
-			if (preLinks.length > 0)
+			if (lazyUnsafeWindow.ShowPre)
 			{
 				_uf_done(event);
-				preLinks[0].click();
-				setTimeout(scrollToImage, 0);
+				lazyUnsafeWindow.ShowPre();
+				handled = true;
+			}
+			else
+			{
+				const preLinks = document.querySelectorAll('#s_pre a, a.s_pre');
+				const preLink = firstListValue(preLinks);
+				if (preLink)
+				{
+					_uf_done(event);
+					preLink.click();
+					handled = true;
+				}
 			}
 		}
 		// 下一頁：PageDown 或 右方向鍵
 		else if (key === KEYCODES.pagedown || key === KEYCODES.right)
 		{
-			const nextLinks = document.querySelectorAll('#s_next a, a.s_next, #last-win:visible a.view-btn-next');
-			let handled = false;
 
-			for (const link of nextLinks)
+			const lastWin = document.querySelector('#last-win');
+			const viewBtnNext = lastWin && lastWin.offsetParent !== null ? lastWin.querySelector('a.view-btn-next') : null;
+
+			if (!viewBtnNext && lazyUnsafeWindow.ShowNext)
 			{
 				_uf_done(event);
+				lazyUnsafeWindow.ShowNext();
+				handled = true;
+			}
+			else
+			{
+				const nextLinks = document.querySelectorAll('#s_next a, a.s_next');
+				const nextLink = viewBtnNext || firstListValue(nextLinks);
 
-				// 優先使用原生的 ShowNext 函數
-				if (!link.classList.contains('view-btn-next') && typeof unsafeWindow !== 'undefined' && unsafeWindow.ShowNext)
+				if (!handled && nextLink)
 				{
-					unsafeWindow.ShowNext();
-					setTimeout(scrollToImage, 0);
+					_uf_done(event);
+					nextLink.click();
 					handled = true;
-					break;
-				}
-				else
-				{
-					link.click();
-					handled = true;
-					break;
 				}
 			}
 		}
+
+		if (handled)
+		{
+			setTimeout(scrollToImage, 0);
+			setTimeout(emitResize, 300);
+		}
+
+		return handled;
 	}
-
-
 
 	/**
 	 * 計算圖片比例
@@ -367,14 +459,12 @@ let imgElements = getImages();
 	 * @param {Object} [scrollsize=null] - 滾動條尺寸 {width: number, height: number}
 	 * @returns {NodeList|Array} 處理後的元素集合
 	 */
-	function _uf_fixsize2(who, area, force, scrollsize)
+	function _uf_fixsize2(elem, area, force, scrollsize)
 	{
-		let elem = toList(who);
-
 		let ok;
 
 		// 處理 area 參數
-		if (area === true || area === who || area === elem)
+		if (area === true || area === elem)
 		{
 			scrollsize = null;
 			ok = true;
@@ -584,6 +674,10 @@ let imgElements = getImages();
 			// 初始化圖片：移除右鍵限制，添加事件監聽
 			imgElements.forEach(img => {
 				img.removeAttribute('oncontextmenu');
+
+				img.removeAttribute('load');
+				img.removeAttribute('click');
+
 				img.addEventListener('load', updateImageStyles);
 				img.addEventListener('click', handleImageClick);
 			});
@@ -656,8 +750,22 @@ if (showimage)
 // 初始化執行
 // 使用 requestAnimationFrame 確保 DOM 準備好
 requestAnimationFrame(() => {
-	dm5();
 	applyStyles(document.body, comic_style.body, comic_style.bg_dark);
+
+	const showimage = document.querySelector('#showimage');
+	if (showimage)
+	{
+		showimage.style.minHeight = `${window.innerHeight}px`;
+	}
+
+	// 恢復被禁用的右鍵菜單和拖曳功能
+	_uf_disable_nocontextmenu(2,
+		'#cp_image2, #cp_image, #cp_img, #showimage, #cp_funtb, .cp_tbimg, .view_bt, #showimage *'
+	);
+
+	dm5();
+	updateImageStyles();
+	setTimeout(emitResize, 300);
 });
 
 })();
