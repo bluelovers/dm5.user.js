@@ -30,7 +30,7 @@
 		 */
 	function handleResize()
 	{
-		console.log('handleResize');
+		// console.log('handleResize');
 		// 更新圖片樣式
 		updateImageStyles();
 	}
@@ -176,41 +176,106 @@
 			return false;
 		}
 
-		// 檢查 offsetParent（如果為 null 則元素不可見）
-		if (element.offsetParent === null)
+		// 檢查 offsetParent（輔助判斷，但不是唯一依據）
+		// 注意：某些情況下可見元素的 offsetParent 也會是 null
+		// 例如：position: fixed、transform、opacity: 1 但父元素隱藏等
+		if (element.offsetParent === null && element.style.position !== 'fixed')
 		{
-			console.log('isVisible:false', 'offsetParent', element);
-			return false;
+			// 如果 offsetParent 為 null 且不是 fixed 定位，進一步檢查
+			const parent = element.parentElement;
+			if (parent && parent !== document.body && parent !== document.documentElement)
+			{
+				// 如果父元素隱藏，則當前元素也不可見
+				const parentStyle = window.getComputedStyle(parent);
+				if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden' || parentStyle.opacity === '0')
+				{
+					// console.log('isVisible:false', 'parent hidden', element);
+					return false;
+				}
+			}
 		}
 
 		// 檢查 display 樣式
 		const style = window.getComputedStyle(element);
 		if (style.display === 'none')
 		{
-			console.log('isVisible:false', 'display', element);
-
+			// console.log('isVisible:false', 'display', element);
 			return false;
 		}
 
 		// 檢查 visibility 樣式
 		if (style.visibility === 'hidden')
 		{
-			console.log('isVisible:false', 'visibility', element);
+			// console.log('isVisible:false', 'visibility', element);
 			return false;
 		}
 
 		// 檢查 opacity
-		if (style.opacity === '0')
+		if (style.opacity === '0' || style.opacity === '')
 		{
-			console.log('isVisible:false', 'opacity', element);
+			// 空字串表示沒有設置，但某些瀏覽器可能返回空字串
+			if (style.opacity === '0')
+			{
+				// console.log('isVisible:false', 'opacity', element);
+				return false;
+			}
+		}
+
+		// 檢查元素是否在視口內（getBoundingClientRect 更可靠）
+		const rect = element.getBoundingClientRect();
+
+		// 如果元素完全在視口外，判斷為不可見
+		if (rect.width === 0 || rect.height === 0)
+		{
+			// console.log('isVisible:false', 'rect size', element);
 			return false;
 		}
 
-		// 檢查尺寸
-		if (element.offsetWidth === 0 || element.offsetHeight === 0)
+		// 檢查是否在視口範圍內（考慮滾動）
+		// 如果元素的 top 超過視口底部太多，或者 bottom 小於視口頂部太多
+		// 不過這裡只檢查基本可見性，不檢查是否在視口內
+		// 因為元素可能在視口外但仍然可見（可以滾動到）
+
+		// 檢查 clientWidth/clientHeight（更直接的尺寸檢查）
+		if (element.clientWidth === 0 && element.clientHeight === 0)
 		{
-			console.log('isVisible:false', 'offsetWidth', element);
+			// console.log('isVisible:false', 'client size', element);
 			return false;
+		}
+
+		// 檢查 offsetWidth/offsetHeight（包括邊框和滾動條）
+		if (element.offsetWidth === 0 && element.offsetHeight === 0)
+		{
+			// console.log('isVisible:false', 'offset size', element);
+			return false;
+		}
+
+		// 檢查是否被隱藏在視口外（通過 CSS transform 或其他方式）
+		// 使用 isIntersectingViewport 作為最終檢查（如果瀏覽器支援）
+		try
+		{
+			// 檢查元素是否與視口相交
+			const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+			const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+			// 如果元素完全在視口外（允許一定邊距），仍然認為不可見
+			// 但如果只是部分在視口外，仍然可見
+			const isCompletelyOutside = (
+				rect.right < -viewportWidth ||
+				rect.left > viewportWidth * 2 ||
+				rect.bottom < -viewportHeight ||
+				rect.top > viewportHeight * 2
+			);
+
+			if (isCompletelyOutside)
+			{
+				// console.log('isVisible:false', 'outside viewport', element);
+				return false;
+			}
+		}
+		catch (e)
+		{
+			// 忽略錯誤，繼續其他檢查
 		}
 
 		return true;
@@ -242,6 +307,15 @@
 		});
 
 		return element;
+	}
+
+	function removeEventListenerAll(element, event, ...args)
+	{
+		toList(element).forEach(el => {
+			getEventListeners(window)?.[event]?.forEach(listener => {
+				el.removeEventListener(event, listener, ...args);
+			});
+		});
 	}
 
 	/**
@@ -299,10 +373,7 @@
 				fn_events.forEach(event => {
 					try
 					{
-						el.removeEventListener(event, function (e) {
-							e.preventDefault();
-							e.stopPropagation();
-						}, false);
+						removeEventListenerAll(el, event, false);
 					}
 					catch (e)
 					{
@@ -413,11 +484,50 @@
 // 主程式
 // ========================================
 
-// 只在漫畫閱讀頁面執行
-if (!document.querySelector('body.vPage') && !document.querySelector('#showimage'))
-{
-	return;
-}
+	if (document.querySelector('#checkAdult'))
+	{
+		document.querySelector('#checkAdult').click();
+		return;
+	}
+	else if (window.location.pathname?.match(/-end\//))
+	{
+		document.querySelector('.end_mian .end_top .new_h4 a, .finalPage .topBar .right > a:has(img[src*="finalPage_4_w.png"])')?.click();
+		return;
+	}
+	else if (window.location.pathname?.match(/comichistory|bookmarker/))
+	{
+		let ls = document.querySelectorAll('.mh-list .mh-item');
+
+		document.head.insertAdjacentHTML('beforeend', `
+		<style>
+			.uf-mh-item-same { opacity: 0.5; }
+			.uf-mh-item-same:hover { opacity: 1; }
+		</style>
+	`);
+		
+		ls.forEach((mh) => {
+			let a01 = mh.querySelector('.zl a');
+			let a02 = mh.querySelector('.chapter a');
+
+			console.log(mh, a01, a02);
+
+			mh.querySelectorAll('a').forEach(a => {
+				a.target = '_blank';
+			});
+
+			if (a01?.textContent?.trim() === a02?.textContent?.trim())
+			{
+				mh.classList.add('uf-mh-item-same');
+			}
+		});
+
+		return;
+	}
+	else if (!document.querySelector('body.vPage') && !document.querySelector('#showimage'))
+	{
+		// 只在漫畫閱讀頁面執行
+		return;
+	}
 
 let imgElements = getImages();
 
@@ -605,7 +715,9 @@ let imgElements = getImages();
 		{
 
 			const lastWin = document.querySelector('#last-win');
-			const viewBtnNext = lastWin && lastWin.offsetParent !== null ? lastWin.querySelector('a.view-btn-next') : null;
+			const viewBtnNext = isVisible(lastWin) ? lastWin.querySelector('a.view-btn-next') : null;
+
+			// console.log('viewBtnNext:', viewBtnNext);
 
 			if (!viewBtnNext && lazyUnsafeWindow.ShowNext)
 			{
@@ -952,7 +1064,7 @@ let imgElements = getImages();
 	function dm5()
 	{
 		waitForImages().then(async () => {
-			console.log('dm5', imgElements);
+			// console.log('dm5', imgElements);
 
 			// 初始化圖片：移除右鍵限制，添加事件監聽
 			imgElements.forEach(img => {
