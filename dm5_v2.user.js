@@ -653,7 +653,7 @@ let imgElements = getImages();
 			if (target)
 			{
 				console.log('scrollToElement', target, target.getBoundingClientRect?.());
-				// Firefox/Chrome/Edge 都支持的平滑滾動
+				// 盡可能快速定位避免畫面捲動
 				target.scrollIntoView({ behavior: 'instant', block: 'start' });
 			}
 		}
@@ -702,7 +702,7 @@ let imgElements = getImages();
 			const showimage = document.querySelector('#showimage');
 			if (showimage)
 			{
-				showimage.style.minHeight = `${img.height}px`;
+				showimage.style.minHeight = `${Math.max(img.height, window.innerHeight)}px`;
 			}
 		}
 
