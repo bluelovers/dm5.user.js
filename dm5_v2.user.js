@@ -130,19 +130,13 @@ let imgElements = getImages();
 	 */
 	function scrollToImage()
 	{
-		const imgs = getImages();
-		if (imgs.length > 0)
-		{
-			imgs[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
-		}
+		scrollToElement(getImages());
 	}
 
 	/**
 	 * 觸發 resize（節流）
 	 */
-	const emitResize = throttle(300, () => {
-		handleResize();
-	});
+	const emitResize = throttle(300, handleResize);
 
 	/**
 	 * 計算圖片比例
@@ -190,9 +184,9 @@ let imgElements = getImages();
 	}
 
 	/**
-	 * 處理窗口大小調整（用於 resize.scroll 事件）
+	 * 處理窗口大小調整
 	 */
-	function handleResizeScroll()
+	function handleResize()
 	{
 		imgElements = getImages();
 
@@ -208,15 +202,9 @@ let imgElements = getImages();
 		document.body.style.backgroundColor = '#1a1a1a';
 
 		// 滾動到圖片
-		scrollToElement(getImages());
-	}
+		scrollToElement(imgElements);
 
-	/**
-	 * 處理窗口大小調整（主處理函數）
-	 */
-	function handleResize()
-	{
-		handleResizeScroll();
+		// 更新圖片樣式
 		updateImageStyles();
 	}
 
@@ -267,14 +255,7 @@ let imgElements = getImages();
 		}
 	}
 
-	/**
-	 * 處理圖片加載完成
-	 */
-	function handleImageLoad()
-	{
-		// 直接調用更新樣式
-		updateImageStyles();
-	}
+
 
 	/**
 	 * 計算圖片比例
@@ -499,23 +480,19 @@ let imgElements = getImages();
 	// ========================================
 
 	/**
-	 * 初始化圖片：移除右鍵限制，添加事件監聽
-	 */
-	function initImages()
-	{
-		imgElements.forEach(img => {
-			img.removeAttribute('oncontextmenu');
-			img.addEventListener('load', handleImageLoad);
-			img.addEventListener('click', handleImageClick);
-		});
-	}
-
-	/**
 	 * 主要的圖片初始化邏輯
 	 */
 	function dm5()
 	{
 		waitForImages().then(() => {
+			// 初始化圖片：移除右鍵限制，添加事件監聽
+			imgElements.forEach(img => {
+				img.removeAttribute('oncontextmenu');
+				img.addEventListener('load', updateImageStyles);
+				img.addEventListener('click', handleImageClick);
+			});
+
+			// 更新圖片樣式
 			updateImageStyles();
 		});
 	}
@@ -525,7 +502,7 @@ let imgElements = getImages();
 // ========================================
 
 // 窗口事件
-window.addEventListener('resize', handleResize);
+window.addEventListener('resize', emitResize);
 window.addEventListener('load', dm5);
 
 // 鍵盤事件
