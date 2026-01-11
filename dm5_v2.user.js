@@ -26,6 +26,16 @@
 	})();
 
 	/**
+		 * 處理窗口大小調整
+		 */
+	function handleResize()
+	{
+		console.log('handleResize');
+		// 更新圖片樣式
+		updateImageStyles();
+	}
+
+	/**
 	 * 觸發 resize（節流）
 	 */
 	const emitResize = throttle(300, handleResize);
@@ -559,16 +569,6 @@ let imgElements = getImages();
 	}
 
 	/**
-	 * 處理窗口大小調整
-	 */
-	function handleResize()
-	{
-		console.log('handleResize');
-		// 更新圖片樣式
-		updateImageStyles();
-	}
-
-	/**
 	 * 處理鍵盤導航
 	 */
 	function handleKeydown(event)
@@ -980,6 +980,7 @@ let imgElements = getImages();
 // 窗口事件
 window.addEventListener('resize', emitResize);
 window.addEventListener('load', dm5);
+	window.addEventListener('domcontentloaded', emitResize);
 
 // 鍵盤事件
 window.addEventListener('keydown', handleKeydown);
