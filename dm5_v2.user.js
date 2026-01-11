@@ -98,7 +98,7 @@
 	/**
 	 * 防抖函數 - 延遲執行，在等待期間再次觸發會重置計時器
 	 */
-	function debounce(func, wait)
+	function debounce(wait, func)
 	{
 		let timeout;
 		return function ()
@@ -113,7 +113,7 @@
 	/**
 	 * 節流函數 - 限制執行頻率，在指定時間內只執行一次
 	 */
-	function throttle(func, wait)
+	function throttle(wait, func)
 	{
 		let lastTime = 0;
 		return function ()
