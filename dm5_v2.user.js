@@ -217,6 +217,7 @@
 			el.removeAttribute('onselectstart');
 			el.removeAttribute('onmousedown');
 			el.removeAttribute('onmouseup');
+			el.removeAttribute('onsource');
 
 			// 設置 CSS 樣式
 			applyStyles(el, {
@@ -235,6 +236,21 @@
 			elements.forEach(el => {
 				if (!el || !(el instanceof HTMLElement)) return;
 
+				// 清空事件屬性
+				try
+				{
+					el.oncontextmenu = null;
+					el.ondragstart = null;
+					el.onselectstart = null;
+					el.onmousedown = null;
+					el.onmouseup = null;
+					el.onsource = null;
+				}
+				catch (e)
+				{
+					console.error(e);
+				}
+
 				fn_events.forEach(event => {
 					try
 					{
@@ -249,6 +265,102 @@
 					}
 				});
 			});
+
+			// 檢測並執行 jQuery 相關代碼
+			if (lazyUnsafeWindow.$ && lazyUnsafeWindow.$.fn && lazyUnsafeWindow.$.fn.jquery)
+			{
+				try
+				{
+					const $ = lazyUnsafeWindow.$;
+
+					// 構建 jQuery 對象
+					let arr = $('body, html');
+					if (selector)
+					{
+						arr = arr.add(selector);
+					}
+
+					// 移除屬性
+					arr
+						.removeAttr('ondragstart')
+						.removeAttr('oncontextmenu')
+						.removeAttr('onselectstart')
+						.removeAttr('onmousedown')
+						.removeAttr('onmouseup')
+						.removeAttr('onsource')
+						.css({
+							'-moz-user-select': 'auto',
+							'-webkit-user-select': 'auto',
+							'-ms-user-select': 'auto',
+							'user-select': 'auto',
+						});
+
+					// 清空事件屬性
+					arr.each(function ()
+					{
+						try
+						{
+							this.oncontextmenu = this.ondragstart = this.onselectstart = this.onmousedown = this.onmouseup = this.onsource = null;
+						}
+						catch (e)
+						{
+							console.error(e);
+						}
+					});
+
+					// 解除 jQuery 事件綁定 (舊版本 API)
+					if ($.fn.unbind)
+					{
+						$.each(fn_events, function (i, v)
+						{
+							try
+							{
+								arr.unbind(v);
+							}
+							catch (e)
+							{
+								console.error(e);
+							}
+						});
+					}
+
+					// 解除 jQuery 事件綁定 (die for 事件委派)
+					if ($.fn.die)
+					{
+						$.each(fn_events, function (i, v)
+						{
+							try
+							{
+								arr.die(v);
+							}
+							catch (e)
+							{
+								console.error(e);
+							}
+						});
+					}
+
+					// 解除 jQuery 事件綁定 (新版本 API)
+					if ($.fn.off)
+					{
+						$.each(fn_events, function (i, v)
+						{
+							try
+							{
+								arr.off(v);
+							}
+							catch (e)
+							{
+								console.error(e);
+							}
+						});
+					}
+				}
+				catch (e)
+				{
+					console.error('jQuery error in _uf_disable_nocontextmenu:', e);
+				}
+			}
 		}
 	}
 
@@ -343,15 +455,18 @@ let imgElements = getImages();
 		scrollToImage();
 	}
 
-	/**
-	 * 處理窗口大小調整
-	 */
-	function handleResize()
+	function updatePageText()
 	{
 		// 更新頁數顯示
 		if (lazyUnsafeWindow.DM5_PAGE && lazyUnsafeWindow.DM5_IMAGE_COUNT)
 		{
-			divPage.textContent = `${lazyUnsafeWindow.DM5_PAGE}/${lazyUnsafeWindow.DM5_IMAGE_COUNT}`;
+			const text = `${lazyUnsafeWindow.DM5_PAGE}/${lazyUnsafeWindow.DM5_IMAGE_COUNT}`;
+
+			if (divPage.textContent != text)
+			{
+				console.log('更新頁數顯示:', text);
+				divPage.textContent = text;
+			}
 
 			const anchor_id = _getAnchorID();
 
@@ -368,6 +483,14 @@ let imgElements = getImages();
 				}
 			}
 		}
+	}
+
+	/**
+	 * 處理窗口大小調整
+	 */
+	function handleResize()
+	{
+		updatePageText();
 
 		imgElements = getImages();
 
