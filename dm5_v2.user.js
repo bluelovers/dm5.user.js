@@ -211,6 +211,12 @@ let imgElements = getImages();
 	// 事件處理器
 	// ========================================
 
+	function _getAnchorID()
+	{
+		// return `ipg${unsafeWindow.DM5_PAGE + 1}`;
+		return `ipg_anchor`;
+	}
+
 	/**
 	 * 滾動到當前圖片視圖
 	 */
@@ -218,7 +224,7 @@ let imgElements = getImages();
 	{
 		let imgElements = toList(getImages());
 
-		const area = document.querySelector(`#showimage, #showimage #ipg${unsafeWindow.DM5_PAGE + 1}`);
+		const area = document.querySelector(`#showimage, #${_getAnchorID()}`);
 
 		area && imgElements.push(area);
 
@@ -242,15 +248,17 @@ let imgElements = getImages();
 		{
 			divPage.textContent = `${unsafeWindow.DM5_PAGE}/${unsafeWindow.DM5_IMAGE_COUNT}`;
 
+			const anchor_id = _getAnchorID();
+
 			// 添加錨點（用於頁面跳轉）
-			if (!document.querySelector(`#showimage #ipg${unsafeWindow.DM5_PAGE + 1}`))
+			if (!document.querySelector(`#showimage #${anchor_id}`))
 			{
 				const showimage = document.querySelector('#showimage');
 				if (showimage)
 				{
 					const anchor = document.createElement('a');
-					anchor.id = `ipg${unsafeWindow.DM5_PAGE + 1}`;
-					anchor.name = `ipg${unsafeWindow.DM5_PAGE + 1}`;
+					anchor.id = anchor_id;
+					anchor.name = anchor_id;
 					showimage.insertBefore(anchor, showimage.firstChild);
 				}
 			}
@@ -571,6 +579,8 @@ let imgElements = getImages();
 	function dm5()
 	{
 		waitForImages().then(() => {
+			console.log('dm5', imgElements);
+
 			// 初始化圖片：移除右鍵限制，添加事件監聽
 			imgElements.forEach(img => {
 				img.removeAttribute('oncontextmenu');
@@ -580,6 +590,7 @@ let imgElements = getImages();
 
 			// 更新圖片樣式
 			updateImageStyles();
+			setTimeout(emitResize, 300);
 		});
 	}
 
@@ -646,7 +657,6 @@ if (showimage)
 // 使用 requestAnimationFrame 確保 DOM 準備好
 requestAnimationFrame(() => {
 	dm5();
-	updateImageStyles();
 	applyStyles(document.body, comic_style.body, comic_style.bg_dark);
 });
 
