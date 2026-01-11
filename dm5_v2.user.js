@@ -16,6 +16,57 @@
 	const KEYCODES = { pageup: 33, left: 37, pagedown: 34, right: 39 };
 
 	// ========================================
+	// 漫畫樣式定義
+	// ========================================
+
+	const comic_style = {
+		// 頁數顯示樣式
+		page: {
+			// position: 'fixed',
+			position: 'absolute',
+			padding: '10px',
+			'z-index': 100,
+			'min-width': '80px',
+			'text-align': 'center',
+		},
+		// 背景深色
+		bg_dark: {
+			background: '#34353b',
+		},
+		// 背景深色邊框
+		bg_dark_border: {
+			border: '1px solid #000000',
+		},
+		// 背景深色文字
+		bg_dark_text: {
+			color: '#DDDDDD',
+		},
+		// Body 樣式
+		body: {
+			'min-width': 'auto',
+			margin: 0,
+			padding: 0,
+			outline: 0,
+		},
+		// 圖片樣式
+		photo: {
+			filter: 'contrast(115%)',
+			padding: 0,
+			margin: 'auto',
+			border: '0px none #fff',
+			outline: 0,
+
+			'max-width': 'initial',
+			'max-height': 'initial',
+
+			'min-width': 'initial',
+			'min-height': 'initial',
+
+			'border-spacing': 0,
+		},
+	};
+
+	// ========================================
 	// 工具函數
 	// ========================================
 
@@ -87,6 +138,27 @@
 		if (!mode) event.preventDefault();
 	}
 
+	/**
+	 * 合併並應用多個 CSS 樣式對象到元素
+	 * @param {HTMLElement} element - 目標元素
+	 * @param {...Object} styles - 一個或多個樣式對象
+	 * @returns {HTMLElement} 返回元素本身，支持鏈式調用
+	 */
+	function applyStyles(element, ...styles)
+	{
+		if (!element || !(element instanceof HTMLElement))
+		{
+			return element;
+		}
+
+		// 應用樣式到元素
+		Object.assign(element.style, {
+			...styles
+		});
+
+		return element;
+	}
+
 // ========================================
 // 主程式
 // ========================================
@@ -100,17 +172,15 @@ if (!document.querySelector('body.vPage') && !document.querySelector('#showimage
 let imgElements = getImages();
 
 	// 創建頁數顯示的浮動元素
-	const divPage = document.createElement('div');
-	divPage.style.cssText = `
-		position: absolute;
-		background-color: rgba(0, 0, 0, 0.8);
-		color: white;
-		padding: 8px 12px;
-		border-radius: 4px;
-		font-size: 14px;
-		z-index: 10000;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-	`;
+	const divPage = applyStyles(document.createElement('div'),
+		comic_style.page,
+		comic_style.bg_dark,
+		comic_style.bg_dark_border,
+		comic_style.bg_dark_text,
+		{ 
+			position: 'absolute', 
+		}
+	);
 	document.body.appendChild(divPage);
 
 	// 添加樣式：工具欄透明度
@@ -145,12 +215,6 @@ let imgElements = getImages();
 	{
 		imgElements = getImages();
 
-		// 使用 _uf_fixsize2 調整每張圖片的尺寸
-		if (imgElements.length > 0)
-		{
-			_uf_fixsize2(imgElements, window, 1);
-		}
-
 		// 更新頁數顯示
 		if (typeof unsafeWindow !== 'undefined' && unsafeWindow.DM5_PAGE && unsafeWindow.DM5_IMAGE_COUNT)
 		{
@@ -170,9 +234,13 @@ let imgElements = getImages();
 			}
 		}
 
-		// 定位頁數顯示元素到圖片左上方
+		// 使用 _uf_fixsize2 調整每張圖片的尺寸
 		if (imgElements.length > 0)
 		{
+			applyStyles(imgElements, comic_style.photo);
+			_uf_fixsize2(imgElements, window, 1);
+
+			// 定位頁數顯示元素到圖片左上方
 			const img = imgElements[0];
 			const imgRect = img.getBoundingClientRect();
 			const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
@@ -198,8 +266,7 @@ let imgElements = getImages();
 		}
 
 		// 設置 body 樣式
-		document.body.style.minWidth = 'auto';
-		document.body.style.backgroundColor = '#1a1a1a';
+		applyStyles(document.body, comic_style.body, { 'background-color': '#1a1a1a' });
 
 		// 滾動到圖片
 		scrollToElement(imgElements);
@@ -561,6 +628,7 @@ if (showimage)
 requestAnimationFrame(() => {
 	dm5();
 	updateImageStyles();
+	applyStyles(document.body, comic_style.body, comic_style.bg_dark);
 });
 
 })();
