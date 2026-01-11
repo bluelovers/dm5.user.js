@@ -145,97 +145,17 @@ let imgElements = getImages();
 	});
 
 	/**
- * 取得圖片尺寸 (naturalWidth / naturalHeight)
- * 在各種狀況下都能穩定回傳 Promise
- */
-	function getImageSize(img)
-	{
-		return new Promise((resolve, reject) =>
-		{
-			let resolved = false;
-
-			// 方法一：快取檢查
-			if (img.complete && img.naturalWidth > 0)
-			{
-				resolved = true;
-				return resolve({
-					width: img.naturalWidth,
-					height: img.naturalHeight,
-					method: "cache"
-				});
-			}
-
-			// 方法二：輪詢 (在 load 前可能就能拿到)
-			const checkSize = setInterval(() =>
-			{
-				if (img.naturalWidth > 0 && img.naturalHeight > 0 && !resolved)
-				{
-					resolved = true;
-					clearInterval(checkSize);
-					resolve({
-						width: img.naturalWidth,
-						height: img.naturalHeight,
-						method: "polling"
-					});
-				}
-			}, 50);
-
-			// 方法三：decode()（非同步解碼）
-			img.decode().then(() =>
-			{
-				if (!resolved)
-				{
-					resolved = true;
-					clearInterval(checkSize);
-					resolve({
-						width: img.naturalWidth,
-						height: img.naturalHeight,
-						method: "decode"
-					});
-				}
-			}).catch(() =>
-			{
-				// decode 失敗時忽略，交給 onload/onerror
-			});
-
-			// 方法四：onload（保險做法）
-			img.onload = () =>
-			{
-				if (!resolved)
-				{
-					resolved = true;
-					clearInterval(checkSize);
-					resolve({
-						width: img.naturalWidth,
-						height: img.naturalHeight,
-						method: "onload"
-					});
-				}
-			};
-
-			// 方法五：onerror（錯誤處理）
-			img.onerror = (e) =>
-			{
-				clearInterval(checkSize);
-				if (!resolved)
-				{
-					reject(new Error("圖片載入失敗: " + src));
-				}
-			};
-		});
-	}
-
-	/**
-	 * 更新圖片樣式和頁數顯示
+	 * 計算圖片比例
 	 */
 	function updateImageStyles()
 	{
 		imgElements = getImages();
 
-		// 使用 getImageSize 調整每張圖片的尺寸
-		imgElements.forEach(img => {
-			adjustImageSize(img);
-		});
+		// 使用 _uf_fixsize2 調整每張圖片的尺寸
+		if (imgElements.length > 0)
+		{
+			_uf_fixsize2(imgElements, window, 1);
+		}
 
 		// 更新頁數顯示
 		if (typeof unsafeWindow !== 'undefined' && unsafeWindow.DM5_PAGE && unsafeWindow.DM5_IMAGE_COUNT)
@@ -357,44 +277,146 @@ let imgElements = getImages();
 	}
 
 	/**
-	 * 處理圖片尺寸調整
+	 * 計算圖片比例
 	 */
-	function adjustImageSize(img)
+	function calc_scale(width, height)
 	{
-		getImageSize(img).then(({ width, height }) => {
-			// 根據窗口大小和圖片比例調整圖片顯示
-			const containerWidth = window.innerWidth;
-			const containerHeight = window.innerHeight;
-			const aspectRatio = width / height;
+		return width / height;
+	}
 
-			// 計算最適合的寬度（減少邊距，Firefox/Chrome/Edge 通用）
-			const margin = 40;
-			let newWidth = Math.min(width, containerWidth - margin);
-			let newHeight = newWidth / aspectRatio;
+	/**
+	 * 調整圖片尺寸以適應容器
+	 * @param {HTMLElement|NodeList|Array} who - 圖片元素或元素集合
+	 * @param {Window|HTMLElement} [area=window] - 容器元素或 window
+	 * @param {number} [force=1] - 強制模式 (0=不強制, 1=強制按高度, 2=按比例縮放)
+	 * @param {Object} [scrollsize=null] - 滾動條尺寸 {width: number, height: number}
+	 * @returns {NodeList|Array} 處理後的元素集合
+	 */
+	function _uf_fixsize2(who, area, force, scrollsize)
+	{
+		let elem = Array.isArray(who) || who instanceof NodeList ? who : [who];
 
-			// 如果高度超出視窗，則按高度調整
-			if (newHeight > containerHeight - margin)
+		let ok;
+
+		// 處理 area 參數
+		if (area === true || area === who || area === elem)
+		{
+			scrollsize = null;
+			ok = true;
+		}
+		else if (area)
+		{
+			ok = area;
+		}
+		else
+		{
+			ok = window;
+		}
+
+		// 處理 scrollsize 參數
+		if (!scrollsize || ok === true || (scrollsize.width === undefined && scrollsize.height === undefined) || (!scrollsize.width && !scrollsize.height))
+		{
+			scrollsize = null;
+		}
+		else
+		{
+			if (scrollsize === 'auto')
 			{
-				newHeight = containerHeight - margin;
-				newWidth = newHeight * aspectRatio;
+				scrollsize = { width: 'auto', height: 'auto' };
 			}
 
-			// 使用 CSS 樣式而非直接設置屬性，提升性能
-			img.style.cssText += `
-				width: ${newWidth}px;
-				height: ${newHeight}px;
-				max-width: 100%;
-				object-fit: contain;
-			`;
-		}).catch(err => {
-			console.error('Failed to get image size:', err);
-			// 回退到簡單的響應式樣式
-			img.style.cssText += `
-				max-width: 100%;
-				height: auto;
-				object-fit: contain;
-			`;
+			scrollsize.width = scrollsize.width || 0;
+			scrollsize.height = scrollsize.height || 0;
+		}
+
+		elem.forEach((element) => {
+			if (!(element instanceof HTMLElement)) return;
+
+			let container = ok === true ? element : (ok instanceof HTMLElement ? ok : window);
+
+			// 獲取圖片原始尺寸
+			let w = element.naturalWidth || element.width;
+			let h = element.naturalHeight || element.height;
+
+			// 獲取容器尺寸
+			let w2, h2;
+
+			if (container === window)
+			{
+				w2 = window.innerWidth;
+				h2 = window.innerHeight;
+			}
+			else
+			{
+				w2 = container.offsetWidth;
+				h2 = container.offsetHeight;
+			}
+
+			// 處理滾動條尺寸
+			if (scrollsize)
+			{
+				if (container === window)
+				{
+					w2 = scrollsize.width === 'auto' ? window.innerWidth : w2 - scrollsize.width;
+					h2 = scrollsize.height === 'auto' ? window.innerHeight : h2 - scrollsize.height;
+				}
+				else
+				{
+					w2 = scrollsize.width === 'auto' ? container.clientWidth : w2 - scrollsize.width;
+					h2 = scrollsize.height === 'auto' ? container.clientHeight : h2 - scrollsize.height;
+				}
+			}
+
+			let w3 = w;
+			let h3 = h;
+
+			// 計算調整後的尺寸
+			if (w > w2)
+			{
+				// 寬度超過容器，按寬度縮放
+				w3 = w2;
+				h3 = h * (w2 / w);
+
+				if (h3 > h2)
+				{
+					// 高度也超過容器，按高度再縮放
+					w3 = w3 * (h2 / h3);
+					h3 = h2;
+				}
+			}
+			else if (force > 1)
+			{
+				// 強制按比例縮放
+				let scale = calc_scale(w, h);
+				w3 = w3 * scale;
+				h3 = h2;
+			}
+			else if (force || (h > h2))
+			{
+				// 強制模式或高度超過容器，按高度縮放
+				w3 = w * (h2 / h);
+				h3 = h2;
+
+				if (w3 > w2)
+				{
+					// 寬度超過容器，按寬度再縮放
+					w3 = w2;
+					h3 = h * (w2 / w);
+				}
+			}
+
+			// 設置圖片尺寸
+			element.style.width = `${w3}px`;
+			element.style.height = `${h3}px`;
+
+			// 保存數據屬性
+			element.dataset.naturalWidth = w;
+			element.dataset.naturalHeight = h;
+			element.dataset.width = w3;
+			element.dataset.height = h3;
 		});
+
+		return elem;
 	}
 
 	/**
@@ -477,7 +499,7 @@ let imgElements = getImages();
 	// ========================================
 
 	/**
-	 * 初始化圖片：移除右鍵限制，添加事件監聽，調整尺寸
+	 * 初始化圖片：移除右鍵限制，添加事件監聽
 	 */
 	function initImages()
 	{
@@ -485,8 +507,6 @@ let imgElements = getImages();
 			img.removeAttribute('oncontextmenu');
 			img.addEventListener('load', handleImageLoad);
 			img.addEventListener('click', handleImageClick);
-			// 調整圖片尺寸
-			adjustImageSize(img);
 		});
 	}
 
