@@ -312,7 +312,10 @@
 	function removeEventListenerAll(element, event, ...args)
 	{
 		toList(element).forEach(el => {
-			getEventListeners(window)?.[event]?.forEach(listener => {
+
+			el.removeEventListener?.(event, () => {}, ...args);
+
+			(typeof getEventListeners === 'function') && getEventListeners(el)?.[event]?.forEach(listener => {
 				el.removeEventListener(event, listener, ...args);
 			});
 		});
@@ -424,53 +427,21 @@
 						}
 					});
 
-					// 解除 jQuery 事件綁定 (舊版本 API)
-					if ($.fn.unbind)
-					{
-						$.each(fn_events, function (i, v)
+					['unbind', 'die', 'off'].forEach(fn => {
+						if ($.fn[fn])
 						{
-							try
-							{
-								arr.unbind(v);
-							}
-							catch (e)
-							{
-								console.error(e);
-							}
-						});
-					}
-
-					// 解除 jQuery 事件綁定 (die for 事件委派)
-					if ($.fn.die)
-					{
-						$.each(fn_events, function (i, v)
-						{
-							try
-							{
-								arr.die(v);
-							}
-							catch (e)
-							{
-								console.error(e);
-							}
-						});
-					}
-
-					// 解除 jQuery 事件綁定 (新版本 API)
-					if ($.fn.off)
-					{
-						$.each(fn_events, function (i, v)
-						{
-							try
-							{
-								arr.off(v);
-							}
-							catch (e)
-							{
-								console.error(e);
-							}
-						});
-					}
+							fn_events.forEach(event => {
+								try
+								{
+									arr[fn].call(arr, event);
+								}
+								catch (e)
+								{
+									console.error(e);
+								}
+							});
+						}
+					});
 				}
 				catch (e)
 				{
@@ -496,7 +467,7 @@
 	}
 	else if (window.location.pathname?.match(/comichistory|bookmarker|search|manhua-.+/))
 	{
-		let ls = document.querySelectorAll('.mh-list .mh-item, .mh-list .mh-itme-top');
+		
 
 		document.head.insertAdjacentHTML('beforeend', `
 		<style>
@@ -504,6 +475,10 @@
 			.uf-mh-item-same:hover { opacity: 1; }
 		</style>
 	`);
+
+		const fnLink = debounce(200, () => 
+	{
+			let ls = document.querySelectorAll('.mh-list .mh-item, .mh-list .mh-itme-top');
 		
 		ls.forEach((mh) => {
 			let a01 = mh.querySelector('.zl a');
@@ -519,6 +494,41 @@
 			{
 				mh.classList.add('uf-mh-item-same');
 			}
+		});
+
+	});
+
+		requestAnimationFrame(() =>
+		{
+			fnLink();
+
+			for (let _a of document.querySelectorAll('.banner_detail_form .subtitle a'))
+			{
+				let href = _a.getAttribute('href');
+				if (href?.includes('htmlurlencode'))
+				{
+					href = href.replace(/(?:%3C|<)%htmlurlencode\((.+)\)%(?:>|%3E)/ig, (_, p1) => {
+						return encodeURIComponent(p1);
+					});
+
+					_a.setAttribute('href', href);
+				}
+
+				_a.target = '_blank';
+			}
+
+			const observer = new MutationObserver(() =>
+			{
+				fnLink();
+			});
+
+			// 監聽 #showimage 的 DOM 變化
+			const target = document.querySelector('div.box-body');
+			
+			target && observer.observe(target, {
+					childList: true,
+					subtree: true,
+				});
 		});
 
 		window.addEventListener('keydown', (event) => {
@@ -921,20 +931,20 @@ let imgElements = getImages();
 			{
 				// 強制按比例縮放
 				let scale = calc_scale(w, h);
-				w3 = w3 * scale;
+				w3 = w2 * scale;
 				h3 = h2;
 			}
 			else if (force || (h > h2))
 			{
 				// 強制模式或高度超過容器，按高度縮放
-				w3 = w * (h2 / h);
+				w3 = w * calc_scale(h2, h);
 				h3 = h2;
 
 				if (w3 > w2)
 				{
 					// 寬度超過容器，按寬度再縮放
 					w3 = w2;
-					h3 = h * (w2 / w);
+					h3 = h * calc_scale(w2, w);
 				}
 			}
 
