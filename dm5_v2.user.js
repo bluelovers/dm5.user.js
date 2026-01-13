@@ -516,6 +516,11 @@
 		<style>
 			.uf-mh-item-same { opacity: 0.5; }
 			.uf-mh-item-same:hover { opacity: 1; }
+
+			.view-comment .view-win-list li.uf-mh-item-last-read { color: #9209e9; background: #e5cdfc; }
+			.view-comment .view-win-list li:hover.uf-mh-item-last-read { background: #ffeef1; }
+
+			.view-comment .view-win-list li.uf-mh-item-last-read a { }
 		</style>
 	`);
 
@@ -545,19 +550,48 @@
 		{
 			fnLink();
 
-			for (let _a of document.querySelectorAll('.banner_detail_form .subtitle a'))
-			{
-				let href = _a.getAttribute('href');
-				if (href?.includes('htmlurlencode'))
-				{
-					href = href.replace(/(?:%3C|<)%htmlurlencode\((.+)\)%(?:>|%3E)/ig, (_, p1) => {
-						return encodeURIComponent(p1);
-					});
+			let manhua_detail_area = document.querySelector('.banner_detail_form');
 
-					_a.setAttribute('href', href);
+			if (manhua_detail_area)
+			{
+				for (let _a of manhua_detail_area.querySelectorAll('.info .subtitle a'))
+				{
+					let href = _a.getAttribute('href');
+					if (href?.includes('htmlurlencode'))
+					{
+						href = href.replace(/(?:%3C|<)%htmlurlencode\((.+)\)%(?:>|%3E)/ig, (_, p1) =>
+						{
+							return encodeURIComponent(p1);
+						});
+
+						_a.setAttribute('href', href);
+					}
+
+					_a.target = '_blank';
 				}
 
-				_a.target = '_blank';
+				let _a_read = manhua_detail_area.querySelector('.info .bottom .btn-2');
+
+				let _a_read_href = _a_read?.getAttribute('href')
+					?.replace(/-p(\d+)([\\\/]?)$/, (_0, _1, _2) => {
+						_a_read.textContent += ` - 第 ${++_1} 页`;
+						return _2;
+					})
+				;
+
+				if (_a_read_href)
+				{
+					for (let _li of document.querySelectorAll('.view-comment .view-win-list li'))
+					{
+						let _a = _li.querySelector('a');
+
+						if (_a.href?.includes(_a_read_href))
+						{
+							_li.classList.add('uf-mh-item-last-read');
+							_a.classList.add('active');
+						}
+					}
+				}
 			}
 
 			const observer = new MutationObserver(() =>
