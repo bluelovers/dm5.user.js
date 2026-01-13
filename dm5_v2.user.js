@@ -574,7 +574,7 @@
 
 				let _a_read_href = _a_read?.getAttribute('href')
 					?.replace(/-p(\d+)([\\\/]?)$/, (_0, _1, _2) => {
-						_a_read.textContent += ` - 第 ${++_1} 页`;
+						_a_read.textContent += ` - 第 ${_1} 页`;
 						return _2;
 					})
 				;
