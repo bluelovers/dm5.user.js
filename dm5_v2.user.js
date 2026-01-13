@@ -15,6 +15,14 @@
 
 	const KEYCODES = { pageup: 33, left: 37, pagedown: 34, right: 39 };
 
+	/**
+	 * 捲軸尺寸
+	 */
+	let scrollSize = {
+		width: null,
+		height: null,
+	};
+
 	const lazyUnsafeWindow = (() =>
 	{
 		if (typeof unsafeWindow !== 'undefined')
@@ -94,6 +102,41 @@
 	// ========================================
 	// 工具函數
 	// ========================================
+
+	/**
+	 * 計算捲軸尺寸（同時回傳寬度和高度）
+	 * @returns {Object} 捲軸尺寸 {width: number, height: number}
+	 */
+	function getScrollbarSize()
+	{
+		// 創建一個測試元素同時測量寬度和高度
+		const outer = document.createElement('div');
+		outer.style.visibility = 'hidden';
+		outer.style.width = '100px';
+		outer.style.height = '100px';
+		outer.style.msOverflowStyle = 'scrollbar'; // IE
+		outer.style.overflow = 'scroll';
+
+		document.body.appendChild(outer);
+
+		const widthNoScroll = outer.offsetWidth;
+		const heightNoScroll = outer.offsetHeight;
+
+		const inner = document.createElement('div');
+		inner.style.width = '100%';
+		inner.style.height = '100%';
+		outer.appendChild(inner);
+
+		const widthWithScroll = inner.offsetWidth;
+		const heightWithScroll = inner.offsetHeight;
+
+		outer.remove();
+
+		return {
+			width: widthNoScroll - widthWithScroll,
+			height: heightNoScroll - heightWithScroll
+		};
+	}
 
 	/**
 	 * 防抖函數 - 延遲執行，在等待期間再次觸發會重置計時器
@@ -697,7 +740,7 @@ let imgElements = getImages();
 		if (imgElements.length > 0)
 		{
 			applyStyles(imgElements, comic_style.photo);
-			_uf_fixsize2(imgElements, window, 1);
+			_uf_fixsize2(imgElements, window, 1, scrollSize);
 
 			// 定位頁數顯示元素到圖片左上方
 			const img = firstListValue(imgElements);
@@ -1228,6 +1271,10 @@ if (showimage)
 // 使用 requestAnimationFrame 確保 DOM 準備好
 requestAnimationFrame(() => {
 	applyStyles(document.body, comic_style.body, comic_style.bg_dark);
+
+	scrollSize.width = getScrollbarSize().width;
+
+	console.log('scrollbar size:', scrollSize);
 
 	const showimage = document.querySelector('#showimage');
 	if (showimage)
