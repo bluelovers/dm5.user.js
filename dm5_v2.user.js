@@ -526,7 +526,7 @@
 
 		const fnLink = debounce(200, () => 
 	{
-			let ls = document.querySelectorAll('.mh-list .mh-item, .mh-list .mh-itme-top');
+			let ls = document.querySelectorAll('.mh-list .mh-item, .mh-list .mh-itme-top, #sub-manga-1 li');
 		
 		ls.forEach((mh) => {
 			let a01 = mh.querySelector('.zl a');
@@ -538,7 +538,7 @@
 				a.target = '_blank';
 			});
 
-			if (a01?.textContent?.trim() === a02?.textContent?.trim())
+			if (a01 && (a01?.textContent?.trim() === a02?.textContent?.trim()))
 			{
 				mh.classList.add('uf-mh-item-same');
 			}
