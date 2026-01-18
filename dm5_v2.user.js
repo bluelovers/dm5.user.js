@@ -521,8 +521,19 @@
 			.view-comment .view-win-list li:hover.uf-mh-item-last-read { background: #ffeef1; }
 
 			.view-comment .view-win-list li.uf-mh-item-last-read a { }
+
+			.uf-mh-item-matched { 
+				background: 1px 1px 3px rgba(226 0 255 / 50%);
+			}
+
+			.uf-mh-item-matched, .uf-mh-item-matched .mh-tip-wrap.active { 
+				border: 3px solid rgba(226 0 255 / 25%); 
+				box-shadow: 1px 1px 3px rgba(226 0 255 / 50%);
+			}
 		</style>
 	`);
+
+	const txtKeywords = document.querySelector('#txtKeywords')?.value?.trim();
 
 		const fnLink = debounce(200, () => 
 	{
@@ -541,6 +552,14 @@
 			if (a01 && (a01?.textContent?.trim() === a02?.textContent?.trim()))
 			{
 				mh.classList.add('uf-mh-item-same');
+			}
+
+			if (txtKeywords)
+			{
+				if (mh.textContent.trim().includes(txtKeywords))
+				{
+					mh.classList.add('uf-mh-item-matched');
+				}
 			}
 		});
 
