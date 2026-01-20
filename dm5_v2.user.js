@@ -530,7 +530,7 @@
 				border: 3px solid rgba(226 0 255 / 25%); 
 				box-shadow: 1px 1px 3px rgba(226 0 255 / 50%);
 			}
-		</style>                                                               
+		</style>
 	`);
 
 		const txtKeywords = document.querySelector('#txtKeywords')?.value?.trim().toLowerCase();
