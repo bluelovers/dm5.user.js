@@ -523,17 +523,17 @@
 			.view-comment .view-win-list li.uf-mh-item-last-read a { }
 
 			.uf-mh-item-matched { 
-				background: 1px 1px 3px rgba(226 0 255 / 50%);
+				background-color: rgba(226 0 255 / 50%);
 			}
 
 			.uf-mh-item-matched, .uf-mh-item-matched .mh-tip-wrap.active { 
 				border: 3px solid rgba(226 0 255 / 25%); 
 				box-shadow: 1px 1px 3px rgba(226 0 255 / 50%);
 			}
-		</style>
+		</style>                                                               
 	`);
 
-	const txtKeywords = document.querySelector('#txtKeywords')?.value?.trim();
+		const txtKeywords = document.querySelector('#txtKeywords')?.value?.trim().toLowerCase();
 
 		const fnLink = debounce(200, () => 
 	{
@@ -556,7 +556,7 @@
 
 			if (txtKeywords)
 			{
-				if (mh.textContent.trim().includes(txtKeywords))
+				if (mh.textContent.trim().toLowerCase().includes(txtKeywords))
 				{
 					mh.classList.add('uf-mh-item-matched');
 				}
