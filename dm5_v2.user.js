@@ -510,8 +510,6 @@
 	}
 	else if (window.location.pathname?.match(/comichistory|bookmarker|search|manhua-.+/))
 	{
-		
-
 		document.head.insertAdjacentHTML('beforeend', `
 		<style>
 			.uf-mh-item-same { opacity: 0.5; }
@@ -698,7 +696,7 @@
 		return;
 	}
 
-let imgElements = getImages();
+	let imgElements = getImages();
 
 	// 創建頁數顯示的浮動元素
 	const divPage = applyStyles(document.createElement('div'),
@@ -804,12 +802,7 @@ let imgElements = getImages();
 			divPage.style.top = `${scrollTop + imgRect.top + 50}px`;
 			divPage.style.left = `${scrollLeft + imgRect.left - divPage.offsetWidth}px`;
 
-			// 設置 #showimage 容器高度
-			const showimage = document.querySelector('#showimage');
-			if (showimage)
-			{
-				showimage.style.minHeight = `${Math.max(img.height, window.innerHeight)}px`;
-			}
+			minHeightView();
 		}
 
 		updatePageText();
@@ -1258,6 +1251,25 @@ let imgElements = getImages();
 		});
 	};
 
+	/**
+	 * 設置 #showimage 容器高度
+	 */
+	function minHeightView()
+	{
+		const showimage = document.querySelector('#showimage');
+		if (showimage)
+		{
+			let minHeight = window.innerHeight;
+			const img = firstListValue(imgElements = getImages());
+			if (img?.height)
+			{
+
+				minHeight = Math.max(img.height, minHeight);
+			}
+			showimage.style.minHeight = `${minHeight}px`;
+		}
+	}
+
 // ========================================
 // 事件監聽器綁定
 // ========================================
@@ -1329,11 +1341,7 @@ requestAnimationFrame(() => {
 
 	console.log('scrollbar size:', scrollSize);
 
-	const showimage = document.querySelector('#showimage');
-	if (showimage)
-	{
-		showimage.style.minHeight = `${window.innerHeight}px`;
-	}
+	minHeightView();
 
 	// 恢復被禁用的右鍵菜單和拖曳功能
 	_uf_disable_nocontextmenu(2,
